@@ -1,24 +1,30 @@
 # pyModbusIntesisBox
-This project is a python3 library for interfacing with the IntesisBox PA-AW-MBS-1 (no H generation) controller.
+This project is a python3 library for interfacing with the IntesisBox PA-AW-MBS-1 (no H generation) Modbus RTU  controller using pyModbus.
 
-[Datasheet](https://www.intesis.com/docs/librariesprovider11/other-documentation/intesisbox-deprecated/intesisbox_pa-aw-mbs-1_datasheet_en_d.pdf)
-[Installation](https://www.intesis.com/docs/librariesprovider11/other-documentation/intesisbox-deprecated/intesisbox_pa-aw-mbs-1_installation_manual_en_d.pdf)
-[Compatibility](https://www.intesis.com/docs/librariesprovider11/other-documentation/intesisbox-deprecated/intesishome_pa-aw-xxx-1_compatibility_d.pdf)
-[Protocol Manual](https://www.intesis.com/docs/librariesprovider11/other-documentation/intesisbox-deprecated/intesisbox_pa-aw-mbs-1_user_manual_en_d.pdf)
+[Datasheet ](https://www.intesis.com/docs/librariesprovider11/other-documentation/intesisbox-deprecated/intesisbox_pa-aw-mbs-1_datasheet_en_d.pdf)
+[Installation ](https://www.intesis.com/docs/librariesprovider11/other-documentation/intesisbox-deprecated/intesisbox_pa-aw-mbs-1_installation_manual_en_d.pdf)
+[Compatibility ](https://www.intesis.com/docs/librariesprovider11/other-documentation/intesisbox-deprecated/intesishome_pa-aw-xxx-1_compatibility_d.pdf)
+[Protocol Manua l](https://www.intesis.com/docs/librariesprovider11/other-documentation/intesisbox-deprecated/intesisbox_pa-aw-mbs-1_user_manual_en_d.pdf)
 
 ## Installation
 ```shell
 
-git clone github.com:gianfrdp/pyModbusIntesisBox.git
-cd github.com:gianfrdp/pyModbusIntesisBox.git
+git clone git@github.com:gianfrdp/pyModbusIntesisBox.git
+cd pyModbusIntesisBox
 python3 setup.py build
+
 python3 setup.py install --user
+or
+sudo python3 setup.py install
 ```
 
 ## Read/Write properties
 ### Read
+
  - aquarea.poll_data()
+
 then use
+
  - aqaurea.system
  - aquarea.mode
  - aquarea.tank_setpoint_temp
@@ -27,6 +33,7 @@ then use
 ### Change values/modes
 
 Simply set values properties and call
+
  - auarea.system = "On"
  - aquarea.mode = "Tank"
  - aquarea.tank_setpoint_temp = 48
@@ -53,3 +60,9 @@ if __name__ == "__main__":
     main()
 
 ```
+
+in examples directory there are some exapmles:
+
+- aquarea_info.py: read only program to read put on log all values
+- aquarea.py: read/write program that sends also some values to [domoticz](https://www.domoticz.com/)
+- aquarea.cron: sample cron file containng a year scheduling for Aquarea using aquarea.py
