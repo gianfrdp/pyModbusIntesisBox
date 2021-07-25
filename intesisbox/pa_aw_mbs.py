@@ -11,6 +11,10 @@ import logging
 log = logging.getLogger(__name__)
 
 INTESIS_NULL = 0x8000
+DEG = "(°C)"
+HZ = "(Hz)"
+MIN = "(min)"
+WH = "(Wh)"
 
 READ = 0x1
 WRITE = 0x2
@@ -18,95 +22,95 @@ READ_WRITE = 0x1 | 0x2
 
 INTESISBOX_MAP = {
     # General System Control
-    0:  {"name": "system", "values": {0: "Off", 1: "On"}, "type": "int", "access": READ_WRITE},
-    1:  {"name": "otudoor_temp", "type": "temp", "access": READ},
-    2:  {"name": "water_out_temp", "type": "temp", "access": READ},
-    3:  {"name": "water_in_temp", "type": "temp", "access": READ},
-    4:  {"name": "mode", "values": {0: "None", 1: "Heat", 2: "Heat+Tank", 3: "Tank", 4: "Cool+Tank", 5: "Cool"}, "type": "int", "access": READ_WRITE},
+    0:  {"name": "system", "values": {0: "Off", 1: "On"}, "type": "int", "desc": 'Power', "access": READ_WRITE},
+    1:  {"name": "otudoor_temp", "type": "temp", "desc": f'Outdoor temperature {DEG}', "access": READ},
+    2:  {"name": "water_out_temp", "type": "temp", "desc": f'Outgoing Water Temperature {DEG}', "access": READ},
+    3:  {"name": "water_in_temp", "type": "temp", "desc": f'Ingoing Water Temperature {DEG}', "access": READ},
+    4:  {"name": "mode", "values": {0: "None", 1: "Heat", 2: "Heat+Tank", 3: "Tank", 4: "Cool+Tank", 5: "Cool"}, "type": "int", "desc": 'Operating Mode', "access": READ_WRITE},
     # Climate Configuration
-    10: {"name": "config_mode", "values": {0: "Off", 1: "Heat", 2: "Cool"}, "type": "int", "access": READ},
-    11: {"name": "working", "values": {0: "Normal", 1: "Eco", 2: "Powerful"}, "type": "int", "access": READ_WRITE},
-    12: {"name": "heat_low_outdoor_set_temperature", "type": "temp", "access": READ_WRITE},
-    13: {"name": "heat_high_outdoor_set_temperature", "type": "temp", "access": READ_WRITE},
-    14: {"name": "heat_low_water_set_temperature", "type": "temp", "access": READ_WRITE},
-    15: {"name": "heat_high_water_set_temperature", "type": "temp", "access": READ_WRITE},
-    16: {"name": "water_thermo_shift", "type": "temp", "access": READ_WRITE},
-    17: {"name": "heat_temperature_max", "type": "temp", "access": READ_WRITE},
-    18: {"name": "heat_temperature_min", "values": {0: "Disabled", 1: "Enabled"}, "type": "int", "access": READ},
-    19: {"name": "heat_out_temp_min", "type": "temp", "access": READ},
-    20: {"name": "heater_setpoint_temp", "type": "temp", "access": READ},
-    21: {"name": "heater_capacity", "values": {0x55: "0 KW", 0x58: "3 KW", 0x5b: "6 KW", 0x5e: "9 KW"}, "type": "int", "access": READ_WRITE},
-    22: {"name": "heater_max_capacity", "type": "int", "access": READ},
-    23: {"name": "cool_setpoint_temp", "type": "temp", "access": READ_WRITE},
-    24: {"name": "heat_setpoint_temp", "type": "temp", "access": READ},
-    25: {"name": "auto_heat_to_cool_temp", "type": "temp", "access": READ},
-    26: {"name": "auto_cool_to_heat_temp", "type": "temp", "access": READ},
-    27: {"name": "auto_mode", "values": {0: "Off", 1: "Heat", 2: "Cool"}, "type": "int", "access": READ},
+    10: {"name": "config_mode", "values": {0: "Off", 1: "Heat", 2: "Cool"}, "type": "int", "desc": 'Climate Mode (heat/cool)', "access": READ},
+    11: {"name": "working", "values": {0: "Normal", 1: "Eco", 2: "Powerful"}, "type": "int", "desc": 'Climate Working Mode', "access": READ_WRITE},
+    12: {"name": "heat_low_outdoor_set_temperature", "type": "temp", "desc": f'Outdoor Temp for Heating at Low Water Temp {DEG}', "access": READ_WRITE},
+    13: {"name": "heat_high_outdoor_set_temperature", "type": "temp", "desc": f'Water Setpoint for Heating at Low Outdoor Temp {DEG}', "access": READ_WRITE},
+    14: {"name": "heat_low_water_set_temperature", "type": "temp", "desc": f'Outdoor Temp for Heating at High Water Temp {DEG}', "access": READ_WRITE},
+    15: {"name": "heat_high_water_set_temperature", "type": "temp", "desc": f'Water Setpoint for Heating at High Outdoor Temp {DEG}', "access": READ_WRITE},
+    16: {"name": "water_thermo_shift", "type": "temp", "desc": f'Water Current Thermoshift {DEG}', "access": READ_WRITE},
+    17: {"name": "heat_temperature_max", "type": "temp", "desc": f'Outdoor Temp for Heating off (Max) {DEG}', "access": READ_WRITE},
+    18: {"name": "heat_temperature_min", "values": {0: "Disabled", 1: "Enabled"}, "type": "int", "desc": 'Outdoor Temp for Heating off (Min) mode', "access": READ},
+    19: {"name": "heat_out_temp_min", "type": "temp", "desc": f'Outdoor Temp for Heating off (Min) {DEG}', "access": READ},
+    20: {"name": "heater_setpoint_temp", "type": "temp", "desc": f'Outdoor Temp for Heater On {DEG}', "access": READ},
+    21: {"name": "heater_capacity", "values": {0x55: "0 KW", 0x58: "3 KW", 0x5b: "6 KW", 0x5e: "9 KW"}, "type": "int", "desc": 'Heater Capacity Selection', "access": READ_WRITE},
+    22: {"name": "heater_max_capacity", "type": "int", "desc": 'Max Heater Capacity', "access": READ},
+    23: {"name": "cool_setpoint_temp", "type": "temp", "desc": f'Cooling Setpoint Temperature {DEG}', "access": READ_WRITE},
+    24: {"name": "heat_setpoint_temp", "type": "temp", "desc": f'Heating Setpoint Temperature {DEG}', "access": READ},
+    25: {"name": "auto_heat_to_cool_temp", "type": "temp", "desc": f'Auto Heat to Cool Temperature {DEG}', "access": READ},
+    26: {"name": "auto_cool_to_heat_temp", "type": "temp", "desc": f'Auto Cool to Heat Temperature {DEG}', "access": READ},
+    27: {"name": "auto_mode", "values": {0: "Off", 1: "Heat", 2: "Cool"}, "type": "int", "desc": 'Auto Config Mode', "access": READ},
     # Tank Configuration
-    30: {"name": "tank_mode", "values": {0: "Off", 1: "On"}, "type": "int", "access": READ},
-    31: {"name": "tank_working", "values": {0: "Normal", 1: "Eco", 2: "Powerful"}, "type": "int", "access": READ_WRITE},
-    32: {"name": "tank_water_temp", "type": "temp", "access": READ},
-    33: {"name": "tank_setpoint_temp", "type": "temp", "access": READ_WRITE},
-    34: {"name": "heat_interval", "type": "int", "access": READ_WRITE},
-    35: {"name": "operation_interval", "type": "min", "access": READ_WRITE},
-    36: {"name": "booster_delay", "type": "int", "access": READ_WRITE},
-    37: {"name": "sterilization_on", "type": "int", "access": WRITE},
-    38: {"name": "tank_ster_temp", "type": "temp", "access": READ_WRITE},
-    39: {"name": "tank_ster_time", "type": "int", "access": READ},
+    30: {"name": "tank_mode", "values": {0: "Off", 1: "On"}, "type": "int", "desc": 'Tank On/Off', "access": READ},
+    31: {"name": "tank_working", "values": {0: "Normal", 1: "Eco", 2: "Powerful"}, "type": "int", "desc": 'Tank Working Mode', "access": READ_WRITE},
+    32: {"name": "tank_water_temp", "type": "temp", "desc": f'Tank Water Temperature {DEG}', "access": READ},
+    33: {"name": "tank_setpoint_temp", "type": "temp", "desc": f'Tank Water Setpoint Temp {DEG}', "access": READ_WRITE},
+    34: {"name": "heat_interval", "type": "int", "desc": 'Heat-up Interval', "access": READ_WRITE},
+    35: {"name": "operation_interval", "type": "min", "desc": f'Operation Interval {MIN}', "access": READ_WRITE},
+    36: {"name": "booster_delay", "type": "int", "desc": 'Booster Delay Time', "access": READ_WRITE},
+    37: {"name": "sterilization_on", "type": "int", "desc": 'Sterilization On', "access": WRITE},
+    38: {"name": "tank_ster_temp", "type": "temp", "desc": f'Sterilization Boiling Temp {DEG}', "access": READ_WRITE},
+    39: {"name": "tank_ster_time", "type": "int", "desc": 'Sterilization Continuing Time', "access": READ},
     # Consumption
-    47: {"name": "heat_wh", "type": "int", "access": READ},
-    48: {"name": "cool_wh", "type": "int", "access": READ},
-    49: {"name": "tank_wh", "type": "int", "access": READ},
+    47: {"name": "heat_wh", "type": "int", "desc": f'Heat mode consumption {WH}', "access": READ},
+    48: {"name": "cool_wh", "type": "int", "desc": f'Cool mode consumption {WH}', "access": READ},
+    49: {"name": "tank_wh", "type": "int", "desc": f'Tank mode consumption {WH}', "access": READ},
     # Maintenance
-    50: {"name": "test_mode_1", "type": "int", "access": WRITE},
-    51: {"name": "test_mode_2", "type": "int", "access": WRITE},
-    52: {"name": "error", "type": "int", "access": READ},
-    53: {"name": "error_history", "type": "int", "access": READ},
-    54: {"name": "error_reset_1", "type": "int", "access": WRITE},
-    55: {"name": "error_reset_2", "type": "int", "access": WRITE},
-    56: {"name": "tank_warn", "values": {0: "Off", 1: "On"}, "type": "int", "access": READ},
-    57: {"name": "defrost", "values": {0: "Off", 1: "On"}, "type": "int", "access": READ},
-    58: {"name": "solar", "values": {0: "Off", 1: "On"}, "type": "int", "access": READ},
-    59: {"name": "booster", "values": {0: "Off", 1: "On"}, "type": "int", "access": READ},
-    60: {"name": "compressor", "type": "int", "access": READ},
-    61: {"name": "compressor_hour", "type": "int", "access": READ_WRITE},
-    62: {"name": "pump_down", "values": {0: "Off", 1: "On"}, "type": "int", "access": READ},
-    63: {"name": "force_mode", "values": {0: "Off", 1: "On"}, "type": "int", "access": READ_WRITE},
-    64: {"name": "force_deice", "type": "int", "access": WRITE},
-    65: {"name": "service", "values": {0x00: "Normal", 0x01: "Service pumpdown", 0x02: "Service pump"}, "type": "int", "access": READ_WRITE},
-    66: {"name": "quiet", "values": {0: "Off", 1: "On"}, "type": "int", "access": READ_WRITE},
-    67: {"name": "heater_when_heat", "values": {0: "Off", 1: "On"}, "type": "int", "access": READ_WRITE},
-    68: {"name": "heater_status", "values": {0: "Off", 1: "On"}, "type": "int", "access": READ},
-    69: {"name": "heater_mode", "values": {0: "Off", 1: "On"}, "type": "int", "access": READ},
-    70: {"name": "alarm_status", "values": {0: "No alarm", 1: "Alarm"}, "type": "int", "access": READ},
-    71: {"name": "dry_concrete_temp", "type": "temp", "access": READ},
-    72: {"name": "air_purge", "values": {0: "Off", 1: "On"}, "type": "int", "access": READ_WRITE},
-    73: {"name": "pump_speed", "type": "int", "access": READ_WRITE},
-    74: {"name": "erp_operation", "type": "int", "access": READ_WRITE},
-    75: {"name": "erp_param", "values": {0: "Hz", 1: "Td", 2: "FM", 3: "I1"}, "type": "int", "access": READ},
-    76: {"name": "erp_data", "type": "int", "access": READ},
-    77: {"name": "slow_fast_test", "values": {0: "Normal", 1: "Slow Time", 2: "Fast Time", 3: "Slow Day", 4: "Fast Day"}, "type": "int", "access": READ},
+    50: {"name": "test_mode_1", "type": "int", "desc": 'Test mode 1', "access": WRITE},
+    51: {"name": "test_mode_2", "type": "int", "desc": 'Test Mode 2', "access": WRITE},
+    52: {"name": "error", "type": "err", "desc": 'Error', "access": READ},
+    53: {"name": "error_history", "type": "err", "desc": 'Historical Error', "access": READ},
+    54: {"name": "error_reset_1", "type": "int", "desc": 'Error Reset 1', "access": WRITE},
+    55: {"name": "error_reset_2", "type": "int", "desc": 'Error Reset 2', "access": WRITE},
+    56: {"name": "tank_warn", "values": {0: "Off", 1: "On"}, "type": "int", "desc": 'Warning Tank Temp. Status', "access": READ},
+    57: {"name": "defrost", "values": {0: "Off", 1: "On"}, "type": "int", "desc": 'Defrost Status', "access": READ},
+    58: {"name": "solar", "values": {0: "Off", 1: "On"}, "type": "int", "desc": 'Solar Status', "access": READ},
+    59: {"name": "booster", "values": {0: "Off", 1: "On"}, "type": "int", "desc": 'Booster Status', "access": READ},
+    60: {"name": "compressor", "type": "int", "desc": f'Compressor Frequency {HZ}', "access": READ},
+    61: {"name": "compressor_hour", "type": "int", "desc": 'Compressor Hours', "access": READ_WRITE},
+    62: {"name": "pump_down", "values": {0: "Off", 1: "On"}, "type": "int", "desc": 'Pump Down', "access": READ},
+    63: {"name": "force_mode", "values": {0: "Off", 1: "On"}, "type": "int", "desc": 'Force Mode', "access": READ_WRITE},
+    64: {"name": "force_deice", "type": "int", "desc": 'Force Deice', "access": WRITE},
+    65: {"name": "service", "values": {0x00: "Normal", 0x01: "Service pumpdown", 0x02: "Service pump"}, "type": "int", "desc": 'Service', "access": READ_WRITE},
+    66: {"name": "quiet", "values": {0: "Off", 1: "On"}, "type": "int", "desc": 'Quiet Mode', "access": READ_WRITE},
+    67: {"name": "heater_when_heat", "values": {0: "Off", 1: "On"}, "type": "int", "desc": 'Heater When Heat', "access": READ_WRITE},
+    68: {"name": "heater_status", "values": {0: "Off", 1: "On"}, "type": "int", "desc": 'Heater Status', "access": READ},
+    69: {"name": "heater_mode", "values": {0: "Off", 1: "On"}, "type": "int", "desc": 'Heater Mode', "access": READ},
+    70: {"name": "alarm_status", "values": {0: "No alarm", 1: "Alarm"}, "type": "int", "desc": 'Alarm Status', "access": READ},
+    71: {"name": "dry_concrete_temp", "type": "temp", "desc": 'Dry Concrete Temp', "access": READ},
+    72: {"name": "air_purge", "values": {0: "Off", 1: "On"}, "type": "int", "desc": 'Air Purge', "access": READ_WRITE},
+    73: {"name": "pump_speed", "type": "int", "desc": 'Pump Speed', "access": READ_WRITE},
+    74: {"name": "erp_operation", "type": "int", "desc": 'ERP Operation', "access": READ_WRITE},
+    75: {"name": "erp_param", "values": {0: "Hz", 1: "Td", 2: "FM", 3: "I1"}, "type": "int", "desc": 'ERP PArameters', "access": READ},
+    76: {"name": "erp_data", "type": "int", "desc": 'ERP Data', "access": READ},
+    77: {"name": "slow_fast_test", "values": {0: "Normal", 1: "Slow Time", 2: "Fast Time", 3: "Slow Day", 4: "Fast Day"}, "type": "int", "desc": '', "access": READ},
     # Unit Configuration
-    80: {"name": "room_thermostat", "values": {0x55: "Off", 0xAA: "On"}, "type": "int", "access": READ},
-    81: {"name": "tank_connection", "values": {0x55: "Off", 0xAA: "On"}, "type": "int", "access": READ},
-    82: {"name": "solar_priority", "values": {0x55: "Off", 0xAA: "On"}, "type": "int", "access": READ},
-    83: {"name": "heating_priority", "values": {0x55: "Off", 0xAA: "On"}, "type": "int", "access": READ},
-    84: {"name": "cooling_priority", "values": {0x55: "Off", 0xAA: "On"}, "type": "int", "access": READ},
-    85: {"name": "sterilization", "values": {0x55: "Off", 0xAA: "On"}, "type": "int", "access": READ},
-    86: {"name": "base_pan_heater", "values": {0x55: "Type A", 0xAA: "Type B"}, "type": "int", "access": READ},
-    87: {"name": "anti_freezing", "values": {0x55: "Off", 0xAA: "On"}, "type": "int", "access": READ},
-    88: {"name": "booster_heater", "values": {0x55: "Off", 0xAA: "On"}, "type": "int", "access": READ},
-    89: {"name": "cool_mode_selection", "values": {0x55: "Off", 0xAA: "On"}, "type": "int", "access": READ},
-    90: {"name": "base_pan_heater_selection", "values": {0x55: "Off", 0xAA: "On"}, "type": "int", "access": READ},
+    80: {"name": "room_thermostat", "values": {0x55: "Off", 0xAA: "On"}, "type": "int", "desc": 'Room thermostat', "access": READ},
+    81: {"name": "tank_connection", "values": {0x55: "Off", 0xAA: "On"}, "type": "int", "desc": 'Tank Connection', "access": READ},
+    82: {"name": "solar_priority", "values": {0x55: "Off", 0xAA: "On"}, "type": "int", "desc": 'Solar Priority', "access": READ},
+    83: {"name": "heating_priority", "values": {0x55: "Off", 0xAA: "On"}, "type": "int", "desc": 'Heating Priority', "access": READ},
+    84: {"name": "cooling_priority", "values": {0x55: "Off", 0xAA: "On"}, "type": "int", "desc": 'Cooling Priority', "access": READ},
+    85: {"name": "sterilization", "values": {0x55: "Off", 0xAA: "On"}, "type": "int", "desc": 'Sterilization', "access": READ},
+    86: {"name": "base_pan_heater", "values": {0x55: "Type A", 0xAA: "Type B"}, "type": "int", "desc": 'Base Pan Heater', "access": READ},
+    87: {"name": "anti_freezing", "values": {0x55: "Off", 0xAA: "On"}, "type": "int", "desc": 'Anti freezing', "access": READ},
+    88: {"name": "booster_heater", "values": {0x55: "Off", 0xAA: "On"}, "type": "int", "desc": 'Booster Heater', "access": READ},
+    89: {"name": "cool_mode_selection", "values": {0x55: "Off", 0xAA: "On"}, "type": "int", "desc": 'Cool Mode Selected', "access": READ},
+    90: {"name": "base_pan_heater_selection", "values": {0x55: "Off", 0xAA: "On"}, "type": "int", "desc": 'Base Pan Heater Selected', "access": READ},
     # System Configuration
-    1000: {"name": "thermoshift_heat_eco", "type": "temp", "access": READ_WRITE},
-    1001: {"name": "thermoshift_heat_powerful", "type": "temp", "access": READ_WRITE},
-    1002: {"name": "thermoshift_cool_eco", "type": "temp", "access": READ_WRITE},
-    1003: {"name": "thermoshift_cool_powerful", "type": "temp", "access": READ_WRITE},
-    1004: {"name": "thermoshift_tank_eco", "type": "temp", "access": READ_WRITE},
-    1005: {"name": "thermoshift_tank_powerful", "type": "temp", "access": READ_WRITE},
-    1006: {"name": "sync", "values": {1: "Trigger"}, "type": "int", "access": READ_WRITE},
-    1007: {"name": "led", "values": {0: "Disabled", 1: "Enabled"}, "type": "int", "access": READ_WRITE}
+    1000: {"name": "thermoshift_heat_eco", "type": "temp", "desc": f'Climate Preset Heat Thermoshift (ECO) {DEG}', "access": READ_WRITE},
+    1001: {"name": "thermoshift_heat_powerful", "type": "temp", "desc": f'Climate Preset Heat Thermoshift (POWERFUL) {DEG}', "access": READ_WRITE},
+    1002: {"name": "thermoshift_cool_eco", "type": "temp", "desc": f'Climate Preset Cool Thermoshift (ECO) {DEG}', "access": READ_WRITE},
+    1003: {"name": "thermoshift_cool_powerful", "type": "temp", "desc": f'Climate Preset Cool Thermoshift (POWERFUL) {DEG}', "access": READ_WRITE},
+    1004: {"name": "thermoshift_tank_eco", "type": "temp", "desc": f'Preset Tank Thermoshift (ECO) {DEG}', "access": READ_WRITE},
+    1005: {"name": "thermoshift_tank_powerful", "type": "temp", "desc": f'Preset Tank Thermoshift (POWERFUL) {DEG}', "access": READ_WRITE},
+    1006: {"name": "sync", "values": {0: "Off", 1: "Trigger"}, "type": "int", "desc": 'Sync', "access": READ_WRITE},
+    1007: {"name": "led", "values": {0: "Disabled", 1: "Enabled"}, "type": "int", "desc": 'LED', "access": READ_WRITE}
 }
 
 ERROR_MAP = {
@@ -245,7 +249,7 @@ class AquareaModbus:
 
     @property
     def version(self):
-        return "0.3"
+        return "0.4"
 
     @property
     def slave(self):
@@ -735,6 +739,18 @@ class AquareaModbus:
             log.debug(f"No data for {name},{value}")
         return res
 
+    def get_all_valid_values(self):
+        result = {}
+        for name in self.__data:
+            if name != None and not ("." in name) and self.__data[name] != None:
+                DATA = {}
+                DATA["value"] = self.__data[name]
+                DATA["desc"] = INTESISBOX_MAP[self.__data[name+".reg"]]["desc"]
+                log.debug("DATA = ")
+                log.debug(DATA)
+                result[name] = DATA
+        return result
+
     def send_cmd(self):
         """ Send message Queue to Modbus device """
         if self.__is_connected:
@@ -754,10 +770,11 @@ class AquareaModbus:
     def __get_device_value(self, instance, reg, offset=0):
         """Internal method to load single register value"""
         log.debug("reg = %d" % reg)
+        uid = reg - offset
         if reg in INTESISBOX_MAP:
             log.debug("INTESISBOX_MAP[%d] = %s" % (reg, INTESISBOX_MAP[reg]))
             # If the value is null (32768), set as None
-            value = self.__get_data(instance, reg-offset, 1)
+            value = self.__get_data(instance, uid, 1)
             log.debug("HEX value[%d] = 0x%x" % (reg, value))
             log.debug(f"INTESISBOX_MAP[{reg}] = {INTESISBOX_MAP[reg]}")
             MAP    = INTESISBOX_MAP[reg]
@@ -770,28 +787,38 @@ class AquareaModbus:
             # Original value
             OVALUE = NAME+".ovalue"
             #log.debug(f"MAP({reg}) = {MAP}")
+            REG = NAME+".reg"
+            
             if value == INTESIS_NULL:
                 self.__data[NAME]   = None
                 self.__data[VALUE]  = None
                 self.__data[OVALUE] = None
                 self.__data[MVALUE] = None
+                self.__data[REG] = reg
                 log.debug("NULL value[%d]" % reg)
             else:
                 if MAP["type"] == "int":
-                    value = self.__get_int(instance, reg-offset, 1)
+                    value = self.__get_int(instance, uid, 1)
                     log.debug("int value[%d] = %d" % (reg, value))
                 elif MAP["type"] == "temp":
-                    value = self.__get_temp(instance, reg-offset, 1)
+                    value = self.__get_temp(instance, uid, 1)
                     log.debug("temp value[%d] = %.1f" % (reg, value))
                 elif MAP["type"] == "min":
-                    value = self.__get_interval(self.__get_int(instance, reg-offset, 1))
+                    value = self.__get_interval(self.__get_int(instance, uid, 1))
                     log.debug("min value[%d] = %d" % (reg, value))
+                elif MAP["type"] == "err":
+                    int_value = self.__get_interval(self.__get_int(instance, uid, 1))
+                    code = ERROR_MAP[int_value]["code"]
+                    desc = ERROR_MAP[int_value]["desc"]
+                    value = code + ": " + desc
+                    log.debug("err value[%d] = %s" % (reg, value))
                 else:
                     value = self.__get_int(instance, reg, 1)
                     log.debug("unknown value[%d] = %d" % (reg, value))
                 
                 self.__data[VALUE] = value
                 self.__data[OVALUE] = value
+                self.__data[REG] = reg
 
                 # Translate known regs to configuration item names
                 value_map = MAP.get("values")
@@ -810,6 +837,7 @@ class AquareaModbus:
             # Log unknown UIDs
             self.__data[f"unknown_reg_{reg}"] = None
             self.__data[f"unknown_reg_{reg}"+".value"] = None
+            self.__data[f"unknown_reg_{reg}"+".reg"] = reg
 
     def __get_temp(self, instance, start, count) -> float:
         """Internal method to get temperature value from registers"""

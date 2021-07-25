@@ -68,6 +68,7 @@ TANK_SET_POINT=48
  31  9 20-30 6   *       pi                                aquarea.py --power On --mode Tank --tank_working Powerful >> /dev/null 2>&1
  21 10 20-30 6   *       pi                                aquarea.py --power On --mode Cool --cool_set_point ${COOL_SET_POINT} >> /dev/null 2>&1
  31 12 20-30 6   *       pi        aquarea.py --power Off; aquarea.py --power On --mode Cool --cool_set_point ${COOL_SET_POINT} >> /dev/null 2>&1
+  1 15 20-30 6   *       pi        aquarea.py --power Off; aquarea.py --power On --mode Cool --cool_set_point ${COOL_SET_POINT} >> /dev/null 2>&1
  31 16 20-30 6   *       pi                                aquarea.py --power On --mode Tank >> /dev/null 2>&1
   1 17 20-30 6   *       pi                                aquarea.py --power On --mode Cool --cool_set_point ${COOL_SET_POINT} >> /dev/null 2>&1
  31 18 20-30 6   *       pi        aquarea.py --power Off; aquarea.py --power On --mode Cool --cool_set_point ${COOL_SET_POINT} >> /dev/null 2>&1
@@ -79,6 +80,7 @@ TANK_SET_POINT=48
  31  9   * 7-8   *       pi                                aquarea.py --power On --mode Tank --tank_working Powerful >> /dev/null 2>&1
  21 10   * 7-8   *       pi                                aquarea.py --power On --mode Cool --cool_set_point ${COOL_SET_POINT} >> /dev/null 2>&1
  31 12   * 7-8   *       pi        aquarea.py --power Off; aquarea.py --power On --mode Cool --cool_set_point ${COOL_SET_POINT} >> /dev/null 2>&1
+  1 15 20-30 6   *       pi        aquarea.py --power Off; aquarea.py --power On --mode Cool --cool_set_point ${COOL_SET_POINT} >> /dev/null 2>&1
  31 16   * 7-8   *       pi                                aquarea.py --power On --mode Tank >> /dev/null 2>&1
   1 17   * 7-8   *       pi                                aquarea.py --power On --mode Cool --cool_set_point ${COOL_SET_POINT} >> /dev/null 2>&1
  31 18   * 7-8   *       pi        aquarea.py --power Off; aquarea.py --power On --mode Cool --cool_set_point ${COOL_SET_POINT} >> /dev/null 2>&1
