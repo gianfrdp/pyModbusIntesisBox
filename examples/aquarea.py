@@ -34,9 +34,10 @@ class Domoticz:
     def send(self, aquarea):
         mode_t = Mode[aquarea.mode].value * 10
         self.log.debug(f"mode = {aquarea.mode}, mode.value = {mode_t}")
-        #power = aquarea.get_item_value("system", aquarea.system)
         power = OnOff[aquarea.system].value
         self.log.debug(f"system = {aquarea.system}, system.value = {power}")
+        if power == 0:
+            mode_t = 0
         tank_temp = aquarea.tank_water_temp
         self.log.debug(f"tank_water_temp = {tank_temp}")
         tank_set_point = aquarea.tank_setpoint_temp
@@ -114,6 +115,8 @@ def init_argparse() -> argparse.ArgumentParser:
     parser.add_argument("--reset_error", choices=[1,2], type=int, help="Reset error (1=actual, 2=history)")
     parser.add_argument("--tank_powerful", choices=range(0, 11), type=int, help="Set Tank Thermoshift (POWERFUL) temperature")
     parser.add_argument("--tank_eco", choices=range(0, 11), type=int, help="Set Tank Thermoshift (ECO) temperature")
+    parser.add_argument("--generic_command", help="Set a generic command", dest='command')
+    parser.add_argument("--generic_value", help="Set a generic value for command", dest='value')
     group = parser.add_mutually_exclusive_group()
     group.add_argument("--domoticz", action="store_true", help="Send data to domoticz via MQTT (defalut)", dest='domoticz', default=True)
     group.add_argument("--no-domoticz", action="store_false", help="Do not send data to domoticz via MQTT", dest='domoticz')
@@ -179,6 +182,15 @@ def main():
         else:
             aquarea.error_reset_2("Go")
         log.info(f"Command = Reset Error {mode}")
+
+    if bool(args.command) ^ bool(args.value):
+        parser.error('--generic_command and --generic_value must be given together')
+    else:
+        if args.command:
+            command = args.command
+            value = args.value
+            log.info(f"Command = {command} -> {value}")
+            aquarea.set_value(command, value)
 
     log.info("Connecting...")
     aquarea.connect()

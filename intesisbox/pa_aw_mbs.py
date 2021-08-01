@@ -20,6 +20,8 @@ READ = 0x1
 WRITE = 0x2
 READ_WRITE = 0x1 | 0x2
 
+VERSION = "0.4.1"
+
 INTESISBOX_MAP = {
     # General System Control
     0:  {"name": "system", "values": {0: "Off", 1: "On"}, "type": "int", "desc": 'Power', "access": READ_WRITE},
@@ -249,7 +251,7 @@ class AquareaModbus:
 
     @property
     def version(self):
-        return "0.4"
+        return VERSION
 
     @property
     def slave(self):
@@ -720,7 +722,7 @@ class AquareaModbus:
                     self.__get_device_value(rr, reg)
 
             rr = self.__client.read_holding_registers(address=1000, count=8, unit=self.__slave)
-            log.debug("registers <= 1000 = %s" % rr.registers)
+            log.debug("registers >= 1000 = %s" % rr.registers)
             for reg in INTESISBOX_MAP:
                 if reg >= 1000 and (INTESISBOX_MAP[reg]["access"] & READ):
                     self.__get_device_value(rr, reg, offset=1000)
@@ -750,6 +752,23 @@ class AquareaModbus:
                 log.debug(DATA)
                 result[name] = DATA
         return result
+
+    def set_value(self, name, value):
+        """Set the generic value by name"""
+        if name in COMMAND_MAP:
+            reg = COMMAND_MAP[name]["reg"]
+            log.debug(f"set_value({name}, {value}) -> reg = {reg}")
+            has_range = bool("min" in COMMAND_MAP[name])
+            has_values  = bool("values" in COMMAND_MAP[name])
+            log.debug(f"has_range = {has_range}, has_values = {has_values}")
+            if has_range:
+                self.__set_in_range_value(name, value)
+            elif has_values:
+                self.__set_gen_mode(name, value)
+            else:
+                self._set_value(name, value)
+        else:
+            raise Exception(f"Unkown comman={name}, value={value}")
 
     def send_cmd(self):
         """ Send message Queue to Modbus device """
@@ -807,15 +826,22 @@ class AquareaModbus:
                     value = self.__get_interval(self.__get_int(instance, uid, 1))
                     log.debug("min value[%d] = %d" % (reg, value))
                 elif MAP["type"] == "err":
-                    int_value = self.__get_interval(self.__get_int(instance, uid, 1))
-                    code = ERROR_MAP[int_value]["code"]
-                    desc = ERROR_MAP[int_value]["desc"]
+                    log.debug("err value[%d] = %d" % (reg, value))
+                    int_value = self.__get_int(instance, uid, 1)
+                    log.debug("int value[%d] = %d" % (reg, int_value))
+                    if (int_value in ERROR_MAP):
+                        code = ERROR_MAP[int_value]["code"]
+                        desc = ERROR_MAP[int_value]["desc"]
+                    else:
+                        code = "0"
+                        desc = "Unknown " + str(int_value)
                     value = code + ": " + desc
                     log.debug("err value[%d] = %s" % (reg, value))
                 else:
                     value = self.__get_int(instance, reg, 1)
                     log.debug("unknown value[%d] = %d" % (reg, value))
                 
+                log.debug("VALUE = %s, OVALUE = %s, REG = %s, reg = %s, value = %s" % (str(VALUE), str(OVALUE), str(REG), str(reg), str(value)))
                 self.__data[VALUE] = value
                 self.__data[OVALUE] = value
                 self.__data[REG] = reg
@@ -858,6 +884,7 @@ class AquareaModbus:
                 byteorder=self.__byteorder, wordorder=self.__wordorder
             )
             value = decoder.decode_16bit_int()
+            log.debug(f"__get_int(start={start},count={count}) = {value}")
             return value
         else:
             return INTESIS_NULL
@@ -909,7 +936,6 @@ class AquareaModbus:
     def __set_value(self, reg, value):
         """Internal method to send a register value"""
         is_temp = bool(INTESISBOX_MAP[reg]["type"] == "temp")
-        is_int  = bool(INTESISBOX_MAP[reg]["type"] == "int")
         is_min  = bool(INTESISBOX_MAP[reg]["type"] == "min")
 
         if is_temp:
@@ -924,13 +950,6 @@ class AquareaModbus:
         self.__mq.put(REG)
         log.debug("Message Queue item:")
         log.debug(REG)
-
-    def __set_gen_value(self, name, value):
-        """Internal method for setting the generic value"""
-        if type in COMMAND_MAP:
-            self._set_value(
-                COMMAND_MAP[name]["reg"], value
-            )
 
     def __set_gen_mode(self, name, mode):
         """Internal method for setting the generic mode (type in {operating_mode, climate_working_mode, tank, etc.}) with a string value"""
