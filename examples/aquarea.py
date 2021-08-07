@@ -12,6 +12,149 @@ import time
 from datetime import datetime
 from enum import Enum
 
+def init_argparse() -> argparse.ArgumentParser:
+    
+    parser = argparse.ArgumentParser(description="Send commands to Aqurea device via Modbus"
+                                        ,add_help=True
+                                    )
+    parser.add_argument("--power", choices=["Off", "On"], help="Trun device power")
+    parser.add_argument("--mode", choices=["Heat", "Heat+Tank", "Tank", "Cool+Tank", "Cool"], help="Set device operation mode")
+    parser.add_argument("--cool_set_point", choices=range(5, 21), type=int, help="Set cool set point")
+    parser.add_argument("--tank_set_point", choices=range(40, 53), type=int, help="Set tank set point")
+    parser.add_argument("--tank_working", choices=["Normal", "Eco", "Powerful"], help="Set tank working mode")
+    parser.add_argument("--climate_working", choices=["Normal", "Eco", "Powerful"], help="Set heat/cool working mode")
+    parser.add_argument("--reset_error", choices=[1,2], type=int, help="Reset error (1=actual, 2=history)")
+    parser.add_argument("--tank_powerful", choices=range(0, 11), type=int, help="Set Tank Thermoshift (POWERFUL) temperature")
+    parser.add_argument("--tank_eco", choices=range(0, 11), type=int, help="Set Tank Thermoshift (ECO) temperature")
+    parser.add_argument("--generic_command", help="Set a generic command", dest='command')
+    parser.add_argument("--generic_value", help="Set a generic value for command", dest='value')
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument("--domoticz", action="store_true", help="Send data to domoticz via MQTT (defalut)", dest='domoticz', default=True)
+    group.add_argument("--no-domoticz", action="store_false", help="Do not send data to domoticz via MQTT", dest='domoticz')
+    parser.add_argument('--version', action='version', version='%(prog)s v1.0')
+    return parser
+
+def main():
+    parser = init_argparse()
+    args = parser.parse_args()
+
+    aquarea = AquareaModbus(port='/dev/aquarea', slave=2, timeout=5, lockwait=10, retry=5)
+    print(f"Aquarea PA-AW-MBS-1 Version {aquarea.version}. ModBus device {aquarea.slave}")
+
+    if args.domoticz:
+        log = logging.getLogger("aquarea_domoticz")
+    else:
+        log = logging.getLogger("aquarea")
+
+    if args.power:
+        mode = args.power
+        aquarea.system = mode
+        log.info(f"Command = Power {mode}")
+    
+    if args.mode:
+        mode = args.mode
+        aquarea.mode = mode
+        log.info(f"Command = Mode {mode}")
+    
+    if args.cool_set_point:
+        set_point = args.cool_set_point
+        aquarea.cool_setpoint_temp = set_point
+        log.info(f"Command = Cool set point {set_point}")
+    
+    if args.tank_set_point:
+        set_point = args.tank_set_point
+        aquarea.tank_setpoint_temp = set_point
+        log.info(f"Command = Tank set point {set_point}")
+    
+    if args.tank_working:
+        mode = args.tank_working
+        aquarea.tank_working = mode
+        log.info(f"Command = Tank working {mode}")
+
+    if args.climate_working:
+        mode = args.climate_working
+        aquarea.working = mode
+        log.info(f"Command = Heat/Cool working {mode}")
+
+    if args.tank_powerful:
+        value = args.tank_powerful
+        aquarea.thermoshift_tank_powerful = value
+        log.info(f"Command = Tank Thermoshift (POWERFUL) temperature {value}")
+
+    if args.tank_eco:
+        value = args.tank_eco
+        aquarea.thermoshift_tank_eco = value
+        log.info(f"Command = Tank Thermoshift (ECO) temperature {value}")
+
+    if args.reset_error:
+        mode = args.reset_error
+        if mode == 1:
+            aquarea.error_reset_1("Go")
+        else:
+            aquarea.error_reset_2("Go")
+        log.info(f"Command = Reset Error {mode}")
+
+    if bool(args.command) ^ bool(args.value):
+        parser.error('--generic_command and --generic_value must be given together')
+    else:
+        if args.command:
+            command = args.command
+            value = args.value
+            log.info(f"Command = {command} -> {value}")
+            aquarea.set_value(command, value)
+
+    log.info("Connecting...")
+    aquarea.connect()
+    if aquarea.qsize > 0:
+        log.info(f"Sending commands {aquarea.qsize}...")
+        aquarea.send_cmd()
+        aquarea.close()
+        time.sleep(1)
+        aquarea.connect()
+    log.info(f"Reading data...")
+    aquarea.poll_data()
+    log.info("Disconnecting...")
+    aquarea.close()
+    log.info("Disconnected")
+
+    #---------------------------------------------------------------------------# 
+    # Print values
+    #---------------------------------------------------------------------------# 
+    log.info(f"Aquarea PA-AW-MBS-1 Version {aquarea.version}.")
+    log.info(f"ModBus device {aquarea.slave}")
+
+    values = aquarea.get_all_valid_values()
+
+    log.info("".ljust(56, '-'))
+    for name in values:
+        desc = values[name]["desc"]
+        value = values[name]["value"]
+        msg = desc.ljust(55, '.')
+        log.info(f"{msg}: {value}")
+    log.info("".ljust(56, '-'))
+
+    if args.domoticz:
+        ''' Semd data to domoticz '''
+        #---------------------------------------------------------------------------# 
+        # To Domoticz via MQTT
+        #---------------------------------------------------------------------------# 
+        log.info('Domoticz via MQTT -----------------------------------')
+        broker = "192.168.2.32"
+        port = 1883
+        domoticz = Domoticz(broker, port, log)
+        domoticz.temp_idx = 8
+        domoticz.tank_set_point_idx = 76
+        domoticz.water_set_point_idx = 13
+        domoticz.ext_temp_idx = 12
+        domoticz.out_temp_idx = 10
+        domoticz.in_temp_idx = 11
+        domoticz.power_idx = 14
+        domoticz.mode_idx = 73
+        domoticz.freq_idx = 74
+
+        domoticz.send(aquarea)
+        log.info('Domoticz via MQTT -----------------------------------')
+
 class Domoticz:
     
     broker = None
@@ -101,148 +244,6 @@ class Domoticz:
         rc = publish.multiple(msgs, hostname=self.broker, port=self.port, client_id="pa_aw_mbs")
         self.log.info("Publish: %s" % (rc))
 
-def init_argparse() -> argparse.ArgumentParser:
-    
-    parser = argparse.ArgumentParser(description="Send commands to Aqurea device via Modbus"
-                                        ,add_help=True
-                                    )
-    parser.add_argument("--power", choices=["Off", "On"], help="Trun device power")
-    parser.add_argument("--mode", choices=["Heat", "Heat+Tank", "Tank", "Cool+Tank", "Cool"], help="Set device operation mode")
-    parser.add_argument("--cool_set_point", choices=range(5, 21), type=int, help="Set cool set point")
-    parser.add_argument("--tank_set_point", choices=range(40, 53), type=int, help="Set tank set point")
-    parser.add_argument("--tank_working", choices=["Normal", "Eco", "Powerful"], help="Set tank working mode")
-    parser.add_argument("--climate_working", choices=["Normal", "Eco", "Powerful"], help="Set heat/cool working mode")
-    parser.add_argument("--reset_error", choices=[1,2], type=int, help="Reset error (1=actual, 2=history)")
-    parser.add_argument("--tank_powerful", choices=range(0, 11), type=int, help="Set Tank Thermoshift (POWERFUL) temperature")
-    parser.add_argument("--tank_eco", choices=range(0, 11), type=int, help="Set Tank Thermoshift (ECO) temperature")
-    parser.add_argument("--generic_command", help="Set a generic command", dest='command')
-    parser.add_argument("--generic_value", help="Set a generic value for command", dest='value')
-    group = parser.add_mutually_exclusive_group()
-    group.add_argument("--domoticz", action="store_true", help="Send data to domoticz via MQTT (defalut)", dest='domoticz', default=True)
-    group.add_argument("--no-domoticz", action="store_false", help="Do not send data to domoticz via MQTT", dest='domoticz')
-    parser.add_argument('--version', action='version', version='%(prog)s v1.0')
-    return parser
-
-def main():
-    parser = init_argparse()
-    args = parser.parse_args()
-    
-    if args.domoticz:
-        log = logging.getLogger("aquarea_domoticz")
-    else:
-        log = logging.getLogger("aquarea")
-
-    aquarea = AquareaModbus(port='/dev/aquarea', slave=2)
-    print(f"Aquarea PA-AW-MBS-1 Version {aquarea.version}. ModBus device {aquarea.slave}")
-
-    if args.power:
-        mode = args.power
-        aquarea.system = mode
-        log.info(f"Command = Power {mode}")
-    
-    if args.mode:
-        mode = args.mode
-        aquarea.mode = mode
-        log.info(f"Command = Mode {mode}")
-    
-    if args.cool_set_point:
-        set_point = args.cool_set_point
-        aquarea.cool_setpoint_temp = set_point
-        log.info(f"Command = Cool set point {set_point}")
-    
-    if args.tank_set_point:
-        set_point = args.tank_set_point
-        aquarea.tank_setpoint_temp = set_point
-        log.info(f"Command = Tank set point {set_point}")
-    
-    if args.tank_working:
-        mode = args.tank_working
-        aquarea.tank_working = mode
-        log.info(f"Command = Tank working {mode}")
-
-    if args.climate_working:
-        mode = args.climate_working
-        aquarea.working = mode
-        log.info(f"Command = Heat/Cool working {mode}")
-
-    if args.tank_powerful:
-        value = args.tank_powerful
-        aquarea.thermoshift_tank_powerful = value
-        log.info(f"Command = Tank Thermoshift (POWERFUL) temperature {value}")
-
-    if args.tank_eco:
-        value = args.tank_eco
-        aquarea.thermoshift_tank_eco = value
-        log.info(f"Command = Tank Thermoshift (ECO) temperature {value}")
-
-    if args.reset_error:
-        mode = args.reset_error
-        if mode == 1:
-            aquarea.error_reset_1("Go")
-        else:
-            aquarea.error_reset_2("Go")
-        log.info(f"Command = Reset Error {mode}")
-
-    if bool(args.command) ^ bool(args.value):
-        parser.error('--generic_command and --generic_value must be given together')
-    else:
-        if args.command:
-            command = args.command
-            value = args.value
-            log.info(f"Command = {command} -> {value}")
-            aquarea.set_value(command, value)
-
-    log.info("Connecting...")
-    aquarea.connect()
-    if aquarea.qsize > 0:
-        log.info(f"Sending commands {aquarea.qsize}...")
-        aquarea.send_cmd()
-        aquarea.close()
-        time.sleep(5)
-        aquarea.connect()
-    log.info(f"Reading data...")
-    aquarea.poll_data()
-    log.info("Disconnecting...")
-    aquarea.close()
-    log.info("Disconnected")
-
-    #---------------------------------------------------------------------------# 
-    # Print values
-    #---------------------------------------------------------------------------# 
-    log.info(f"Aquarea PA-AW-MBS-1 Version {aquarea.version}.")
-    log.info(f"ModBus device {aquarea.slave}")
-
-    values = aquarea.get_all_valid_values()
-
-    log.info("".ljust(56, '-'))
-    for name in values:
-        desc = values[name]["desc"]
-        value = values[name]["value"]
-        msg = desc.ljust(55, '.')
-        log.info(f"{msg}: {value}")
-    log.info("".ljust(56, '-'))
-
-    if args.domoticz:
-        ''' Semd data to domoticz '''
-        #---------------------------------------------------------------------------# 
-        # To Domoticz via MQTT
-        #---------------------------------------------------------------------------# 
-        log.info('Domoticz via MQTT -----------------------------------')
-        broker = "192.168.2.32"
-        port = 1883
-        domoticz = Domoticz(broker, port, log)
-        domoticz.temp_idx = 8
-        domoticz.tank_set_point_idx = 9
-        domoticz.water_set_point_idx = 13
-        domoticz.ext_temp_idx = 12
-        domoticz.out_temp_idx = 10
-        domoticz.in_temp_idx = 11
-        domoticz.power_idx = 14
-        domoticz.mode_idx = 73
-        domoticz.freq_idx = 74
-
-        domoticz.send(aquarea)
-        log.info('Domoticz via MQTT -----------------------------------')
 
 if __name__ == "__main__":
     import logging
