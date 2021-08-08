@@ -2,7 +2,7 @@
 from setuptools import setup
 
 setup(name='pyModbusIntesisBox',
-      version='0.5',
+      version='0.5.1',
       description='A python3 library for running communications with IntesisBox Aquarea Modbus Controllers PA-AW-MBS-1 (no H generetion)',
       url='https://github.com/gianfrdp/pyModbusIntesisBox',
       author='Gianfranco Di Prinzio',

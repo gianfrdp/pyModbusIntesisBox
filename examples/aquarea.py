@@ -38,7 +38,7 @@ def main():
     parser = init_argparse()
     args = parser.parse_args()
 
-    aquarea = AquareaModbus(port='/dev/aquarea', slave=2, timeout=5, lockwait=10, retry=5)
+    aquarea = AquareaModbus(port='/dev/aquarea', slave=2, timeout=5, write_timeout=5, lockwait=10, retry=5)
     print(f"Aquarea PA-AW-MBS-1 Version {aquarea.version}. ModBus device {aquarea.slave}")
 
     if args.domoticz:

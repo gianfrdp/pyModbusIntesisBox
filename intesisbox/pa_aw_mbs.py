@@ -1,16 +1,25 @@
 '''
 PA-AW-MBS-1: Modbus RTU (EIA485) Interface for Panasonic Aquarea series (no H series) using pyModbus
 '''
-from pymodbus.client.sync import ModbusSerialClient
+import pymodbus
+from pymodbus.pdu import ModbusRequest
+from pymodbus.client.sync import ModbusSerialClient as ModbusClient
+#initialize a serial RTU client instance
+from pymodbus.transaction import ModbusRtuFramer
 from pymodbus.constants import Endian
 from pymodbus.payload import BinaryPayloadDecoder
+
 from enum import Enum
-import fcntl, serial
+import fasteners, fasteners._utils
 import math
 import queue
 import sys
+import os
+import platform
 import time
+import tempfile
 import logging
+
 log = logging.getLogger(__name__)
 
 INTESIS_NULL = 0x8000
@@ -23,7 +32,7 @@ READ = 0x1
 WRITE = 0x2
 READ_WRITE = 0x1 | 0x2
 
-VERSION = "0.5.0"
+VERSION = "0.5.1"
 
 INTESISBOX_MAP = {
     # General System Control
@@ -225,7 +234,7 @@ class Working(Enum):
 class AquareaModbus:
 
     def __init__(self, port='/dev/ttyUSB0', slave=1, stopbits=1, bytesize=8, parity='N', baudrate=9600, 
-                    timeout=3, byteorder=Endian.Big, wordorder=Endian.Big, lockwait=0, retry = 0, unit=10):
+                    timeout=3, write_timeout=2, byteorder=Endian.Big, wordorder=Endian.Big, lockwait=0, retry=0, unit=10):
 
         self.__slave = slave
         self.__port = port
@@ -234,6 +243,7 @@ class AquareaModbus:
         self.__parity = parity
         self.__baudrate = baudrate
         self.__timeout = timeout
+        self.__write_timeout = write_timeout
         self.__byteorder = byteorder
         self.__wordorder = wordorder
         self.__unit = unit
@@ -245,97 +255,28 @@ class AquareaModbus:
         self.__currtry = 0
         self.__sport = None
         log.debug("slave = %d, port = %s, stopbits = %d, bytesize = %d, parity = %s, baudrate = %d, timeout = %d, byteorder = %s, wordorder = %s, lockwait = %d, unit = %d" % (self.__slave, self.__port, self.__stopbits, self.__bytesize, self.__parity, self.__baudrate, self.__timeout, self.__byteorder, self.__wordorder, self.__lockwait, self.__unit))
+        self.__pid = os.getpid()
+        # Locking system initalization using fasteners library
+        self.__lock_file = 'aquarea.lock'
+        if platform.system() == 'Linux':
+            self.__lock_path = '/run/lock/' + self.__lock_file
+        else:
+            self.__lock_path = tempfile.gettempdir() + '/' + self.__lock_file
+        if not os.path.exists(self.__lock_path):
+            with open(self.__lock_path, 'w') as f:
+                f.close()
+        self.__flock = fasteners.InterProcessReaderWriterLock(self.__lock_path, logger=log)
+        fasteners._utils.BLATHER = log.getEffectiveLevel()
 
     def connect(self):
-        self.__client = ModbusSerialClient(method='rtu', port=self.__port, stopbits=self.__stopbits, bytesize=self.__bytesize, 
-                                            parity=self.__parity, baudrate=self.__baudrate, timeout=self.__timeout, unit=self.__slave)
-        self.__lock()
-        self.__client.connect()
-        self.__is_connected = True
+        self.__client = ModbusClient(method='rtu', port=self.__port, stopbits=self.__stopbits, bytesize=self.__bytesize, 
+                                            parity=self.__parity, baudrate=self.__baudrate, timeout=self.__timeout, writeTimeout=self.__write_timeout,
+                                            unit=self.__slave)
+        self.__is_connected = self.__client.connect()
 
     def close(self):
         self.__client.close()
         self.__is_connected = False
-        self.__unlock()
-
-
-    def __lock_exception(self, lock=1):
-        """ Internal method to manage existing locks on serial device """
-        if lock == 1:
-            PAR1="lock"
-        else:
-            PAR1="unlock"
-        log.warn(f"Serial port already {PAR1}ed")
-        if self.__lockwait > 0:
-            # If lockwait > 0, then wait 'lockait' time and retry to lock
-            log.warn(f"Wait {self.__lockwait} sec to {PAR1}")
-            time.sleep(self.__lockwait)
-            self.__lock()
-        else:
-            # If lockwait == 0, then exit
-            print(f"Port {self.__port} is busy after {self.__currtry} attempts to {PAR1}")
-            log.error(f"Port {self.__port} is busy to {PAR1}")
-            sys.exit(1)
-
-    def __lock(self, lock=1):
-        """ Internal method to lock serial device to prevent other process to access it """
-        if lock == 1:
-            PAR1="lock"
-            PAR2="Locking"
-            PAR3="aquired"
-        else:
-            PAR1="unlock"
-            PAR2="Unlocking"
-            PAR3="released"
-
-        log.debug(f"Trying to {PAR1} serial port: {self.__currtry}/{self.__retry}")
-        """ Perform max 'retry' attempts """
-        if self.__currtry <= self.__retry:
-            
-            self.__sport = serial.Serial(port = self.__port)
-            log.debug(f"port: {self.__sport}")
-            if self.__sport.isOpen():
-                try:
-                    # increce attempts counter
-                    self.__currtry = self.__currtry + 1
-                    LOG_MSG = f"{PAR2} serial port. Attempt {self.__currtry}"
-                    if self.__currtry == 1:
-                        log.debug(LOG_MSG)
-                    else:
-                        log.warn(LOG_MSG)
-                    if lock == 1:
-                        # Lock serial device (unlocked automatically at program exit)
-                        fcntl.flock(self.__sport.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
-                        #fcntl.lockf(self.__sport.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
-                    else:
-                        # Unlock serial device
-                        fcntl.flock(self.__sport.fileno(), fcntl.LOCK_UN)
-                        #fcntl.lockf(self.__sport.fileno(), fcntl.LOCK_UN)
-                except BlockingIOError:
-                    # Exception: already locked, manage lock: retry or exit
-                    self.__lock_exception(lock)
-                except OSError:
-                    # Exception: already locked, manage lock: retry or exit
-                    self.__lock_exception(lock)
-                else:
-                    log.info(f"{PAR2} {PAR3} on port. Attempt {self.__currtry}")
-                    self.__currtry = 0
-
-            else:
-                # Cannot open device
-                print(f"Port {self.__port} closed")
-                log.error(f"Port {self.__port} is closed")
-                sys.exit(1)
-
-        else:
-            # Exceeded the maximum number of attempts
-            LOG_MSG = f"Too many {PAR1} attempts on {self.__port}"
-            print(LOG_MSG)
-            log.error(LOG_MSG)
-            sys.exit(1)
-
-    def __unlock(self):
-        self.__lock(lock=0)
 
     @property
     def version(self):
@@ -802,24 +743,25 @@ class AquareaModbus:
     def poll_data(self):
         """ Read data from Modbus and pull into internal variables """
         if self.__is_connected:
-            rr = self.__client.read_holding_registers(address=0, count=91, unit=self.__slave)
-            if not rr.isError():
-                log.debug("registers < 1000 = %s" % rr.registers)
+            with self.__flock.write_lock():
+                rr = self.__client.read_holding_registers(address=0, count=91, unit=self.__slave)
+                if not rr.isError():
+                    log.debug("registers < 1000 = %s" % rr.registers)
 
-                for reg in INTESISBOX_MAP:
-                    if reg < 1000 and (INTESISBOX_MAP[reg]["access"] & READ):
-                        self.__get_device_value(rr, reg)
+                    for reg in INTESISBOX_MAP:
+                        if reg < 1000 and (INTESISBOX_MAP[reg]["access"] & READ):
+                            self.__get_device_value(rr, reg)
 
-                rr = self.__client.read_holding_registers(address=1000, count=8, unit=self.__slave)
-                log.debug("registers >= 1000 = %s" % rr.registers)
-                for reg in INTESISBOX_MAP:
-                    if reg >= 1000 and (INTESISBOX_MAP[reg]["access"] & READ):
-                        self.__get_device_value(rr, reg, offset=1000)
-                log.debug("_data = %s" % self.__data)
-            else:
-                # handle error, log?
-                log.error(f"Modbus Error: {rr}")
-                sys.exit(1)
+                    rr = self.__client.read_holding_registers(address=1000, count=8, unit=self.__slave)
+                    log.debug("registers >= 1000 = %s" % rr.registers)
+                    for reg in INTESISBOX_MAP:
+                        if reg >= 1000 and (INTESISBOX_MAP[reg]["access"] & READ):
+                            self.__get_device_value(rr, reg, offset=1000)
+                    log.debug("_data = %s" % self.__data)
+                else:
+                    # handle error, log?
+                    log.error(f"Modbus Error: {rr}")
+                    sys.exit(1)
 
     def get_item_value(self, name, value):
         """ Get numeric value from name and string value """
@@ -866,13 +808,14 @@ class AquareaModbus:
     def send_cmd(self):
         """ Send message Queue to Modbus device """
         if self.__is_connected:
-            while (self.__mq.qsize() != 0):
-                REG = self.__mq.get()
-                reg = REG["reg"]
-                value = REG["value"]
-                rq = self.__client.write_register(address=reg, value=REG["value"], unit=self.__slave)
-                if rq.isError():
-                    raise Exception(f"Cannot send address={reg}, value={value}, unit={self.__slave}")
+            with self.__flock.write_lock():
+                while (self.__mq.qsize() != 0):
+                    REG = self.__mq.get()
+                    reg = REG["reg"]
+                    value = REG["value"]
+                    rq = self.__client.write_register(address=reg, value=REG["value"], unit=self.__slave)
+                    if rq.isError():
+                        raise Exception(f"Cannot send address={reg}, value={value}, unit={self.__slave}")
             log.info("No more commnad to send")
 
     ''' ------------------------------------------------------------------------------------------------------------
