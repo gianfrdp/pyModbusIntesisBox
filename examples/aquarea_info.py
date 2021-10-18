@@ -39,8 +39,10 @@ def main():
 if __name__ == "__main__":
     import logging
     import logging.config
+    from os import path
 
-    logging.config.fileConfig("/usr/local/etc/aquarea/pa_aw_mbs_log_config.ini", disable_existing_loggers=False)
+    log_file_path = path.join(path.dirname(path.abspath(__file__)), 'pa_aw_mbs_log_config.ini')
+    logging.config.fileConfig(log_file_path, disable_existing_loggers=False)
     log = logging.getLogger("aquarea_info")
 
     main()

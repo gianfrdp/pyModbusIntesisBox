@@ -32,7 +32,7 @@ READ = 0x1
 WRITE = 0x2
 READ_WRITE = 0x1 | 0x2
 
-VERSION = "0.5.1"
+VERSION = "0.5.2"
 
 INTESISBOX_MAP = {
     # General System Control
@@ -40,13 +40,13 @@ INTESISBOX_MAP = {
     1:  {"name": "otudoor_temp", "type": "temp", "desc": f'Outdoor temperature {DEG}', "access": READ},
     2:  {"name": "water_out_temp", "type": "temp", "desc": f'Outgoing Water Temperature {DEG}', "access": READ},
     3:  {"name": "water_in_temp", "type": "temp", "desc": f'Ingoing Water Temperature {DEG}', "access": READ},
-    4:  {"name": "mode", "values": {0: "None", 1: "Heat", 2: "Heat+Tank", 3: "Tank", 4: "Cool+Tank", 5: "Cool"}, "type": "int", "desc": 'Operating Mode', "access": READ_WRITE},
+    4:  {"name": "mode", "values": {0: "None", 1: "Heat", 2: "Heat_Tank", 3: "Tank", 4: "Cool_Tank", 5: "Cool"}, "type": "int", "desc": 'Operating Mode', "access": READ_WRITE},
     # Climate Configuration
     10: {"name": "config_mode", "values": {0: "Off", 1: "Heat", 2: "Cool"}, "type": "int", "desc": 'Climate Mode (heat/cool)', "access": READ},
     11: {"name": "working", "values": {0: "Normal", 1: "Eco", 2: "Powerful"}, "type": "int", "desc": 'Climate Working Mode', "access": READ_WRITE},
-    12: {"name": "heat_low_outdoor_set_temperature", "type": "temp", "desc": f'Outdoor Temp for Heating at Low Water Temp {DEG}', "access": READ_WRITE},
-    13: {"name": "heat_high_outdoor_set_temperature", "type": "temp", "desc": f'Water Setpoint for Heating at Low Outdoor Temp {DEG}', "access": READ_WRITE},
-    14: {"name": "heat_low_water_set_temperature", "type": "temp", "desc": f'Outdoor Temp for Heating at High Water Temp {DEG}', "access": READ_WRITE},
+    12: {"name": "heat_low_outdoor_set_temperature",  "type": "temp", "desc": f'Outdoor Temp for Heating at Low Water Temp {DEG}', "access": READ_WRITE},
+    13: {"name": "heat_high_outdoor_set_temperature", "type": "temp", "desc": f'Outdoor Temp for Heating at High Water Temp {DEG}', "access": READ_WRITE},
+    14: {"name": "heat_low_water_set_temperature", "type": "temp", "desc": f'Water Setpoint for Heating at Low Outdoor Temp {DEG}', "access": READ_WRITE},
     15: {"name": "heat_high_water_set_temperature", "type": "temp", "desc": f'Water Setpoint for Heating at High Outdoor Temp {DEG}', "access": READ_WRITE},
     16: {"name": "water_thermo_shift", "type": "temp", "desc": f'Water Current Thermoshift {DEG}', "access": READ_WRITE},
     17: {"name": "heat_temperature_max", "type": "temp", "desc": f'Outdoor Temp for Heating off (Max) {DEG}', "access": READ_WRITE},
@@ -174,7 +174,7 @@ ERROR_MAP = {
 
 COMMAND_MAP = {
     "system":                            { "reg":  0, "values": { "Off": 0, "On": 1 }, "type": "int" },
-    "mode":                              { "reg":  4, "values": { "Heat": 1, "Heat+Tank": 2, "Tank": 3, "Cool+Tank": 4, "Cool": 5 }, "type": "int" },
+    "mode":                              { "reg":  4, "values": { "Heat": 1, "Heat_Tank": 2, "Tank": 3, "Cool_Tank": 4, "Cool": 5 }, "type": "int" },
     "working":                           { "reg": 11, "values": { "Normal": 0, "Eco": 1, "Powerful": 2 }, "type": "int" },
     "heat_low_outdoor_set_temperature":  { "reg": 12, "min": -15, "max": 15, "type": "temp" },
     "heat_high_outdoor_set_temperature": { "reg": 13, "min": -15, "max": 15, "type": "temp" },
@@ -272,10 +272,20 @@ class AquareaModbus:
         self.__client = ModbusClient(method='rtu', port=self.__port, stopbits=self.__stopbits, bytesize=self.__bytesize, 
                                             parity=self.__parity, baudrate=self.__baudrate, timeout=self.__timeout, writeTimeout=self.__write_timeout,
                                             unit=self.__slave)
-        self.__is_connected = self.__client.connect()
+        with self.__flock.write_lock():
+            num_retry = 0
+            while (not self.__is_connected and num_retry <= 5):
+                try:
+                    num_retry += 1
+                    self.__is_connected = self.__client.connect()
+                except OSError:
+                    log.error("Error connecting {num_retry}")
+                    time.sleep(5)
+
 
     def close(self):
-        self.__client.close()
+        with self.__flock.write_lock():
+            self.__client.close()
         self.__is_connected = False
 
     @property
@@ -753,11 +763,12 @@ class AquareaModbus:
                             self.__get_device_value(rr, reg)
 
                     rr = self.__client.read_holding_registers(address=1000, count=8, unit=self.__slave)
-                    log.debug("registers >= 1000 = %s" % rr.registers)
-                    for reg in INTESISBOX_MAP:
-                        if reg >= 1000 and (INTESISBOX_MAP[reg]["access"] & READ):
-                            self.__get_device_value(rr, reg, offset=1000)
-                    log.debug("_data = %s" % self.__data)
+                    if not rr.isError():
+                        log.debug("registers >= 1000 = %s" % rr.registers)
+                        for reg in INTESISBOX_MAP:
+                            if reg >= 1000 and (INTESISBOX_MAP[reg]["access"] & READ):
+                                self.__get_device_value(rr, reg, offset=1000)
+                        log.debug("_data = %s" % self.__data)
                 else:
                     # handle error, log?
                     log.error(f"Modbus Error: {rr}")
@@ -803,19 +814,31 @@ class AquareaModbus:
             else:
                 self._set_value(name, value)
         else:
-            raise Exception(f"Unkown comman={name}, value={value}")
+            raise ValueError(f"Unkown comman={name}, value={value}")
 
     def send_cmd(self):
         """ Send message Queue to Modbus device """
+        """ TODO: retry until commands are all sent in case of exception """
         if self.__is_connected:
             with self.__flock.write_lock():
+                idx = 0
                 while (self.__mq.qsize() != 0):
                     REG = self.__mq.get()
+                    idx += 1
                     reg = REG["reg"]
                     value = REG["value"]
-                    rq = self.__client.write_register(address=reg, value=REG["value"], unit=self.__slave)
-                    if rq.isError():
-                        raise Exception(f"Cannot send address={reg}, value={value}, unit={self.__slave}")
+                    finished = False
+                    loop = 1
+                    while not finished:
+                        log.debug(f"{idx}. Sending reg = {reg}, value = {value} on loop {loop}")
+                        rq = self.__client.write_register(address=reg, value=REG["value"], unit=self.__slave)
+                        if rq.isError():
+                            finished = False
+                            loop += 1
+                            log.error(f"Cannot send address={reg}, value={value}, unit={self.__slave}. Retrying {loop}")
+                            time.sleep(5)
+                        else:
+                            finished = True
             log.info("No more commnad to send")
 
     ''' ------------------------------------------------------------------------------------------------------------
@@ -1000,8 +1023,8 @@ class AquareaModbus:
         min_value = int(COMMAND_MAP[name]["min"])
         max_value = int(COMMAND_MAP[name]["max"])
 
-        if min_value <= value <= max_value:
-            self.__set_value(COMMAND_MAP[name]["reg"], value)
+        if min_value <= int(value) <= max_value:
+            self.__set_value(COMMAND_MAP[name]["reg"], int(value))
         else:
             raise ValueError(
                 "Value for %s has to be in range [%d,%d]" % name, min_value, max_value
