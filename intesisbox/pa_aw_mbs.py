@@ -8,6 +8,7 @@ from pymodbus.client.sync import ModbusSerialClient as ModbusClient
 from pymodbus.transaction import ModbusRtuFramer
 from pymodbus.constants import Endian
 from pymodbus.payload import BinaryPayloadDecoder
+from pymodbus.payload import BinaryPayloadBuilder
 
 from enum import Enum
 import fasteners, fasteners._utils
@@ -32,7 +33,7 @@ READ = 0x1
 WRITE = 0x2
 READ_WRITE = 0x1 | 0x2
 
-VERSION = "0.5.2"
+VERSION = "0.5.3"
 
 INTESISBOX_MAP = {
     # General System Control
@@ -822,6 +823,7 @@ class AquareaModbus:
         if self.__is_connected:
             with self.__flock.write_lock():
                 idx = 0
+                builder = BinaryPayloadBuilder(byteorder=self.__byteorder, wordorder=self.__wordorder)
                 while (self.__mq.qsize() != 0):
                     REG = self.__mq.get()
                     idx += 1
@@ -830,8 +832,11 @@ class AquareaModbus:
                     finished = False
                     loop = 1
                     while not finished:
-                        log.debug(f"{idx}. Sending reg = {reg}, value = {value} on loop {loop}")
-                        rq = self.__client.write_register(address=reg, value=REG["value"], unit=self.__slave)
+                        builder.reset()
+                        builder.add_16bit_int(REG["value"])
+                        payload = builder.to_registers()
+                        log.debug(f"{idx}. Sending reg = {reg}, value = {value} on loop {loop}. payload = {payload[0]}")
+                        rq = self.__client.write_register(address=reg, value=payload[0], unit=self.__slave)
                         if rq.isError():
                             finished = False
                             loop += 1

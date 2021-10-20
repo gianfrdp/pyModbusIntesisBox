@@ -32,6 +32,7 @@ def init_argparse() -> argparse.ArgumentParser:
     sec_group.add_argument("--reset_error", choices=[1,2], type=int, help="Reset error (1=actual, 2=history)")
     sec_group.add_argument("--tank_powerful", choices=range(0, 11), type=int, help="Set Tank Thermoshift (POWERFUL) temperature")
     sec_group.add_argument("--tank_eco", choices=range(0, 11), type=int, help="Set Tank Thermoshift (ECO) temperature")
+    sec_group.add_argument("--water_shift", choices=range(-5, 6), type=int, help="Set Water Current Thermoshift")
     sec_group.add_argument("--generic_command", help="Set a generic command", dest='command')
     sec_group.add_argument("--generic_value", help="Set a generic value for command", dest='value')
 
@@ -47,13 +48,16 @@ def main():
 
     aquarea = AquareaModbus(port='/dev/aquarea', slave=2, timeout=5, write_timeout=5, lockwait=10, retry=5)
     print(f"Aquarea PA-AW-MBS-1 Version {aquarea.version}. ModBus device {aquarea.slave}")
+    aquarea.connect()
+    aquarea.poll_data()
+    aquarea.close()
 
-    if args.domoticz:
+    if args.domoticz is not None:
         log = logging.getLogger("aquarea_domoticz")
     else:
         log = logging.getLogger("aquarea")
 
-    if args.restart:
+    if args.restart is not None:
         log.info("Restarting...")
         off = OnOff.Off.name
         on = OnOff.On.name
@@ -70,47 +74,68 @@ def main():
         aquarea.close()
         log.info("done!")
     else:
-        if args.power:
+        if args.power is not None:
             mode = args.power
             aquarea.system = mode
             log.info(f"Command = Power {mode}")
         
-        if args.mode:
+        if args.mode is not None:
             mode = args.mode
             aquarea.mode = mode
             log.info(f"Command = Mode {mode}")
         
-        if args.cool_set_point:
+        if args.cool_set_point is not None:
             set_point = args.cool_set_point
             aquarea.cool_setpoint_temp = set_point
             log.info(f"Command = Cool set point {set_point}")
         
-        if args.tank_set_point:
+        if args.tank_set_point is not None:
             set_point = args.tank_set_point
             aquarea.tank_setpoint_temp = set_point
             log.info(f"Command = Tank set point {set_point}")
         
-        if args.tank_working:
+        if args.tank_working is not None:
             mode = args.tank_working
             aquarea.tank_working = mode
             log.info(f"Command = Tank working {mode}")
 
-        if args.climate_working:
+        if args.water_shift is not None:
+            shift = args.water_shift
+            aquarea.water_thermo_shift = shift
+            log.debug(f"Command = Water thermo shift {shift}")
+
+        if args.climate_working is not None:
             mode = args.climate_working
             aquarea.working = mode
             log.info(f"Command = Heat/Cool working {mode}")
+            log.info(f"aquarea.system = {aquarea.system}, aquarea.mode = {aquarea.mode} ")
+            
+            #if (Mode[aquarea.mode] in [Mode.Heat, Mode.Heat_Tank, Mode.Cool_Tank, Mode.Cool]):
+            shift = 0
+            if (aquarea.config_mode == Mode.Cool.name):
+                if (mode == Working.Eco.name):
+                    shift = aquarea.thermoshift_cool_eco
+                elif (mode == Working.Powerful.name):
+                    shift = -1 * aquarea.thermoshift_cool_powerful
+            else:
+                if (mode == Working.Eco.name):
+                    shift = -1 * aquarea.thermoshift_heat_eco
+                elif (mode == Working.Powerful.name):
+                    shift = aquarea.thermoshift_heat_powerful
+            aquarea.water_thermo_shift = shift
+            log.info(f"Water thermo shift = {shift}")
 
-        if args.tank_powerful:
+        if args.tank_powerful is not None:
             value = args.tank_powerful
             aquarea.thermoshift_tank_powerful = value
             log.info(f"Command = Tank Thermoshift (POWERFUL) temperature {value}")
 
-        if args.tank_eco:
+        if args.tank_eco is not None:
             value = args.tank_eco
             aquarea.thermoshift_tank_eco = value
             log.info(f"Command = Tank Thermoshift (ECO) temperature {value}")
 
-        if args.reset_error:
+        if args.reset_error is not None:
             mode = args.reset_error
             if mode == 1:
                 aquarea.error_reset_1("Go")
@@ -121,7 +146,7 @@ def main():
         if bool(args.command) ^ bool(args.value):
             parser.error('--generic_command and --generic_value must be given together')
         else:
-            if args.command:
+            if args.command is not None:
                 command = args.command
                 value = args.value
                 log.info(f"Command = {command} -> {value}")
@@ -166,20 +191,21 @@ def main():
         broker = "192.168.2.32"
         port = 1883
         domoticz = Domoticz(broker, port, log)
-        domoticz.temp_idx = 8
-        domoticz.tank_set_point_idx = 76
-        domoticz.water_set_point_idx = 13
-        domoticz.ext_temp_idx = 12
-        domoticz.out_temp_idx = 10
-        domoticz.in_temp_idx = 11
-        domoticz.dhw_out_temp_idx = 343
-        domoticz.dhw_in_temp_idx = 344
-        domoticz.power_idx = 14
-        domoticz.mode_idx = 73
-        domoticz.freq_idx = 74
-        domoticz.booster_idx = 78
-        domoticz.working_idx = 339
-        domoticz.tank_working_idx = 341
+        domoticz.temp_idx               = 8
+        domoticz.tank_set_point_idx     = 76
+        domoticz.water_set_point_idx    = 13
+        domoticz.ext_temp_idx           = 12
+        domoticz.out_temp_idx           = 10
+        domoticz.in_temp_idx            = 11
+        domoticz.power_idx              = 14
+        domoticz.mode_idx               = 73
+        domoticz.freq_idx               = 74
+        domoticz.booster_idx            = 78
+        domoticz.working_idx            = 339
+        domoticz.tank_working_idx       = 341
+        domoticz.dhw_out_temp_idx       = 343
+        domoticz.dhw_in_temp_idx        = 344
+        domoticz.water_thermo_shift_idx = 345
 
         domoticz.send(aquarea)
         log.info('Domoticz via MQTT -----------------------------------')
@@ -202,6 +228,7 @@ class Domoticz:
     booster_idx = None
     working_idx = None
     tank_working_idx = None
+    water_thermo_shift_idx = None
 
     def __init__(self, broker, port, log):
         self.broker = broker
@@ -232,6 +259,8 @@ class Domoticz:
         working = Working[aquarea.working].value
         working_t = working * 10
         self.log.debug(f"working = {aquarea.working}, working.value = {working}")
+        water_thermo_shift = aquarea.water_thermo_shift
+        self.log.debug(f"water_thermo_shift = {water_thermo_shift}")
         tank_working = Working[aquarea.tank_working].value
         tank_working_t = tank_working * 10
         self.log.debug(f"tank_working = {aquarea.tank_working}, tank_working.value = {tank_working}")
@@ -256,7 +285,7 @@ class Domoticz:
         if (Mode[aquarea.mode] == Mode.Tank or power == 0):
 
             if (Mode[aquarea.mode] == Mode.Tank and freq > 0):
-                
+
                 MSG.extend([(TOPIC, ROW1 % (self.dhw_out_temp_idx, str(water_outlet_temp)), 0, False)])
                 MSG.extend([(TOPIC, ROW1 % (self.dhw_in_temp_idx, str(water_inlet_temp)), 0, False)])
 
@@ -264,6 +293,7 @@ class Domoticz:
             
             MSG.extend([(TOPIC, ROW1 % (self.out_temp_idx, str(water_outlet_temp)), 0, False)])
             MSG.extend([(TOPIC, ROW1 % (self.in_temp_idx, str(water_inlet_temp)), 0, False)])
+            MSG.extend([(TOPIC, ROW1 % (self.water_thermo_shift_idx, str(water_thermo_shift)), 0, False)])
 
             if (Mode[aquarea.mode] in [Mode.Heat, Mode.Heat_Tank]):
                 water_target_temp = aquarea.heat_setpoint_temp
