@@ -200,7 +200,7 @@ def main():
         domoticz.power_idx              = 14
         domoticz.mode_idx               = 73
         domoticz.freq_idx               = 74
-        domoticz.booster_idx            = 78
+        domoticz.booster_idx            = 342
         domoticz.working_idx            = 339
         domoticz.tank_working_idx       = 341
         domoticz.dhw_out_temp_idx       = 343
@@ -275,7 +275,7 @@ class Domoticz:
                        (TOPIC,           ROW1 % (self.tank_set_point_idx, str(tank_set_point)), 0, False),
                        (TOPIC,           ROW1 % (self.ext_temp_idx, str(outdoor_temp)), 0, False),
                        (TOPIC,           ROW1 % (self.freq_idx, freq), 0, False),
-                       (TOPIC,           ROW4 % (self.booster_idx, booster), 0, False),
+                       (TOPIC,           ROW1 % (self.booster_idx, booster), 0, False),
                        (TOPIC,           ROW2 % (self.power_idx, power), 0, False),
                        (TOPIC,           ROW3 % (self.mode_idx, power, mode_t), 0, False),
                        (TOPIC,           ROW3 % (self.working_idx, working, working_t), 0, False),
