@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
 
-from  intesisbox.pa_aw_mbs import AquareaModbus
-from  intesisbox.pa_aw_mbs import Mode
-from  intesisbox.pa_aw_mbs import OnOff
-from  intesisbox.pa_aw_mbs import Working
+from intesisbox.pa_aw_mbs import AquareaModbus
+from intesisbox.pa_aw_mbs import Mode
+from intesisbox.pa_aw_mbs import OnOff
+from intesisbox.pa_aw_mbs import Working
+from intesisbox.pa_aw_mbs import ThreeWayValve
+from urllib.request import urlopen
+import json
 import sys
 import argparse
 import paho.mqtt.client as mqtt
@@ -210,6 +213,36 @@ def main():
         domoticz.send(aquarea)
         log.info('Domoticz via MQTT -----------------------------------')
 
+
+def thrree_way_direction():
+
+    url = "http://192.168.4.45/status"
+    response = urlopen(url)
+    data_json = json.loads(response.read())
+    state = data_json["rollers"][0]["state"]
+    last_direction =  data_json["rollers"][0]["last_direction"]
+
+    #print(F"state = {state}, last_direction = {last_direction}")
+
+    direction = None
+    if last_direction == state:
+        direction = last_direction
+    else:
+        direction = state
+
+    status = None
+    if direction == 'close':
+        status = 'Climate'
+    elif direction == 'open':
+        status = 'DHW'
+    else:
+        status = 'Unknown'
+
+    #print(F"status = {status}")
+
+    return status
+
+
 class Domoticz:
     
     broker = None
@@ -258,18 +291,26 @@ class Domoticz:
         self.log.debug(f"booster = {aquarea.booster}, booster.value = {booster}")
         working = Working[aquarea.working].value
         working_t = working * 10
+        working_n = 0 if working == 0 else 1
         self.log.debug(f"working = {aquarea.working}, working.value = {working}")
         water_thermo_shift = aquarea.water_thermo_shift
         self.log.debug(f"water_thermo_shift = {water_thermo_shift}")
         tank_working = Working[aquarea.tank_working].value
         tank_working_t = tank_working * 10
+        tank_working_n = 0 if tank_working == 0 else 1
+        direction = None
+        if OnOff[aquarea.tank_connection] == OnOff.On:
+            direction = thrree_way_direction()
+
         self.log.debug(f"tank_working = {aquarea.tank_working}, tank_working.value = {tank_working}")
+        self.log.debug(f"3-way valve = {direction}")
         
         TOPIC = "domoticz/in"
         ROW1 = "{\"idx\":%d,\"nvalue\":0,\"svalue\":\"%s\"}"
         ROW2 = "{\"type\":\"command\",\"param\":\"udevice\",\"idx\":%d,\"nvalue\":%d,\"parsetrigger\":\"false\"}"
         ROW3 = "{\"type\":\"command\",\"param\":\"udevice\",\"idx\":%d,\"nvalue\":%d,\"svalue\":\"%d\",\"parsetrigger\":\"false\"}"
         ROW4 = "{\"idx\":%d,\"nvalue\":%d}"
+        ROW5 = "{\"type\":\"command\",\"param\":\"udevice\",\"idx\":%d,\"nvalue\":%d,\"svalue\":\"%d\"}"
 
         MSG = [{'topic':TOPIC, 'payload':ROW1 % (self.temp_idx, str(tank_temp)), 'qos':0, 'retain':False},
                        (TOPIC,           ROW1 % (self.tank_set_point_idx, str(tank_set_point)), 0, False),
@@ -278,13 +319,16 @@ class Domoticz:
                        (TOPIC,           ROW1 % (self.booster_idx, booster), 0, False),
                        (TOPIC,           ROW2 % (self.power_idx, power), 0, False),
                        (TOPIC,           ROW3 % (self.mode_idx, power, mode_t), 0, False),
-                       (TOPIC,           ROW3 % (self.working_idx, working, working_t), 0, False),
-                       (TOPIC,           ROW3 % (self.tank_working_idx, tank_working, tank_working_t), 0, False),
+                       #(TOPIC,           ROW3 % (self.working_idx, working, working_t), 0, False),
+                       (TOPIC,           ROW5 % (self.working_idx, working_n, working_t), 0, False),
+                       #(TOPIC,           ROW3 % (self.tank_working_idx, tank_working, tank_working_t), 0, False),
+                       (TOPIC,           ROW5 % (self.tank_working_idx, tank_working_n, tank_working_t), 0, False),
+
               ]
 
-        if (Mode[aquarea.mode] == Mode.Tank or power == 0):
+        if (Mode[aquarea.mode] == Mode.Tank or power == 0 or direction == ThreeWayValve.DHW):
 
-            if (Mode[aquarea.mode] == Mode.Tank and freq > 0):
+            if ((Mode[aquarea.mode] == Mode.Tank or direction == ThreeWayValve.DHW) and freq > 0):
 
                 MSG.extend([(TOPIC, ROW1 % (self.dhw_out_temp_idx, str(water_outlet_temp)), 0, False)])
                 MSG.extend([(TOPIC, ROW1 % (self.dhw_in_temp_idx, str(water_inlet_temp)), 0, False)])

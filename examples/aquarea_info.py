@@ -37,12 +37,4 @@ def main():
     # print('Outdoor temperature:............................. %.1f °C' % aquarea.otudoor_temp)
 
 if __name__ == "__main__":
-    import logging
-    import logging.config
-    from os import path
-
-    log_file_path = path.join(path.dirname(path.abspath(__file__)), 'pa_aw_mbs_log_config.ini')
-    logging.config.fileConfig(log_file_path, disable_existing_loggers=False)
-    log = logging.getLogger("aquarea_info")
-
     main()

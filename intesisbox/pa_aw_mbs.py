@@ -33,7 +33,7 @@ READ = 0x1
 WRITE = 0x2
 READ_WRITE = 0x1 | 0x2
 
-VERSION = "0.5.3"
+VERSION = "0.5.4"
 
 INTESISBOX_MAP = {
     # General System Control
@@ -231,6 +231,11 @@ class Working(Enum):
     Normal = 0
     Eco = 1
     Powerful = 2
+
+class ThreeWayValve(Enum):
+    DHW = "DHW"
+    CLIMATE = "Climate"
+
 
 class AquareaModbus:
 

@@ -4,4 +4,4 @@
 /test
 **/__pycache__
 **/*.bak
-
+/examples/pa_aw_mbs.log
