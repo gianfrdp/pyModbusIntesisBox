@@ -33,7 +33,7 @@ READ = 0x1
 WRITE = 0x2
 READ_WRITE = 0x1 | 0x2
 
-VERSION = "0.5.4"
+VERSION = "0.5.5"
 
 INTESISBOX_MAP = {
     # General System Control
@@ -235,6 +235,7 @@ class Working(Enum):
 class ThreeWayValve(Enum):
     DHW = "DHW"
     CLIMATE = "Climate"
+    UNKNOWN = "Unknown"
 
 
 class AquareaModbus:
@@ -1037,5 +1038,5 @@ class AquareaModbus:
             self.__set_value(COMMAND_MAP[name]["reg"], int(value))
         else:
             raise ValueError(
-                "Value for %s has to be in range [%d,%d]" % name, min_value, max_value
+                f"Value for {name} has to be in range [{min_value},{max_value}]"
             )

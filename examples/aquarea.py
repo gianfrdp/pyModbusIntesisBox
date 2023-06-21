@@ -92,15 +92,15 @@ def main():
             aquarea.cool_setpoint_temp = set_point
             log.info(f"Command = Cool set point {set_point}")
         
-        if args.tank_set_point is not None:
-            set_point = args.tank_set_point
-            aquarea.tank_setpoint_temp = set_point
-            log.info(f"Command = Tank set point {set_point}")
-        
         if args.tank_working is not None:
             mode = args.tank_working
             aquarea.tank_working = mode
             log.info(f"Command = Tank working {mode}")
+        
+        if args.tank_set_point is not None:
+            set_point = args.tank_set_point
+            aquarea.tank_setpoint_temp = set_point
+            log.info(f"Command = Tank set point {set_point}")
 
         if args.water_shift is not None:
             shift = args.water_shift
@@ -232,11 +232,11 @@ def thrree_way_direction():
 
     status = None
     if direction == 'close':
-        status = 'Climate'
+        status = ThreeWayValve.CLIMATE
     elif direction == 'open':
-        status = 'DHW'
+        status = ThreeWayValve.DHW
     else:
-        status = 'Unknown'
+        status = ThreeWayValve.UNKNOWN
 
     #print(F"status = {status}")
 
@@ -328,8 +328,11 @@ class Domoticz:
 
         if (Mode[aquarea.mode] == Mode.Tank or power == 0 or direction == ThreeWayValve.DHW):
 
+            self.log.debug(f"Maybe DHW")
+
             if ((Mode[aquarea.mode] == Mode.Tank or direction == ThreeWayValve.DHW) and freq > 0):
 
+                self.log.debug(f"Sending DHW temperature")
                 MSG.extend([(TOPIC, ROW1 % (self.dhw_out_temp_idx, str(water_outlet_temp)), 0, False)])
                 MSG.extend([(TOPIC, ROW1 % (self.dhw_in_temp_idx, str(water_inlet_temp)), 0, False)])
 
