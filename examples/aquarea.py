@@ -6,7 +6,7 @@ from intesisbox.pa_aw_mbs import OnOff
 from intesisbox.pa_aw_mbs import Working
 from intesisbox.pa_aw_mbs import ThreeWayValve
 from urllib.request import urlopen
-import json
+import json as js
 import sys
 import argparse
 import paho.mqtt.client as mqtt
@@ -92,15 +92,15 @@ def main():
             aquarea.cool_setpoint_temp = set_point
             log.info(f"Command = Cool set point {set_point}")
         
-        if args.tank_working is not None:
-            mode = args.tank_working
-            aquarea.tank_working = mode
-            log.info(f"Command = Tank working {mode}")
-        
         if args.tank_set_point is not None:
             set_point = args.tank_set_point
             aquarea.tank_setpoint_temp = set_point
             log.info(f"Command = Tank set point {set_point}")
+        
+        if args.tank_working is not None:
+            mode = args.tank_working
+            aquarea.tank_working = mode
+            log.info(f"Command = Tank working {mode}")
 
         if args.water_shift is not None:
             shift = args.water_shift
@@ -213,16 +213,29 @@ def main():
         domoticz.send(aquarea)
         log.info('Domoticz via MQTT -----------------------------------')
 
+        log.info('MQTT -----------------------------------')
+        broker = "192.168.2.32"
+        port = 1883
+        mqtt = MQTT(broker, port, log)
+        mqtt.send(aquarea)
+        log.info('MQTT -----------------------------------')
+
 
 def thrree_way_direction():
 
+    status = None
+    state = None
     url = "http://192.168.4.45/status"
-    response = urlopen(url)
-    data_json = json.loads(response.read())
-    state = data_json["rollers"][0]["state"]
-    last_direction =  data_json["rollers"][0]["last_direction"]
+    last_direction = None
+    try:
+       response = urlopen(url)
+       data_json = js.loads(response.read())
+       state = data_json["rollers"][0]["state"]
+       last_direction =  data_json["rollers"][0]["last_direction"]
 
-    #print(F"state = {state}, last_direction = {last_direction}")
+       #print(F"state = {state}, last_direction = {last_direction}")
+    except:
+       print(F"An exception occurred opening {url}") 
 
     direction = None
     if last_direction == state:
@@ -230,7 +243,6 @@ def thrree_way_direction():
     else:
         direction = state
 
-    status = None
     if direction == 'close':
         status = ThreeWayValve.CLIMATE
     elif direction == 'open':
@@ -355,6 +367,197 @@ class Domoticz:
          
         self.log.info(self.broker)
         rc = publish.multiple(MSG, hostname=self.broker, port=self.port, client_id="pa_aw_mbs")
+        self.log.info("Publish: %s" % (rc))
+
+class MQTT:
+    
+    broker = None
+    port = None
+    log = None
+
+    def __init__(self, broker, port, log):
+        self.broker = broker
+        self.port = port
+        self.log = log
+
+    def sensor(self, name, key, value, unit, device_class, state_class, icon, sensor):
+
+        topic0 = f"homeassistant/{sensor}/aquarea_{key}"
+        topic = f"{topic0}/config"
+        payload = {
+            "name": f"{name}",
+            "state_topic": f"{topic0}/state",
+            "unique_id": f"aquarea_{key}",
+            "force_update": "true",
+        }
+        if unit and unit != "bool":
+            payload["unit_of_measurement"] = f"{unit}"
+        if device_class:
+            payload["device_class"] = device_class
+        if state_class:
+            payload["state_class"] = state_class
+        if icon:
+            payload.update({"icon": icon})
+
+        payload["device"] = {
+            "name": "aquarea",
+            "identifiers": ["T-CAP 9 kW Monobloc"],
+            "model": "WH-MXC09D3E5",
+            "manufacturer": "Panasonic",
+        }
+        value_ = value
+        if sensor == "binary_sensor":
+          if value == 0:
+            value_ = "OFF"
+          else:
+            value_ = "ON"
+        payloads = js.dumps(payload)
+        conf_msg = {"topic": topic, "payload": payloads}
+        topic = f"{topic0}/state"
+        val_msg = {"topic": topic, "payload": value_}
+        return conf_msg, val_msg
+
+    def send(self, aquarea):
+
+        MSG = []
+        value_msgs = []
+
+        # Tank Temp
+        tank_temp = aquarea.tank_water_temp
+        self.log.debug(f"tank_water_temp = {tank_temp}")
+        conf_msg, val_msg = self.sensor("Tank Water Temperature", "tank_water_temp", tank_temp, "°C", "temperature", None, "mdi:water-thermometer", "sensor")
+        MSG.append(conf_msg)
+        value_msgs.append(val_msg)
+
+        # Tank Set Point
+        tank_set_point = aquarea.tank_setpoint_temp
+        self.log.debug(f"tank_setpoint_temp = {tank_set_point}")
+        conf_msg, val_msg = self.sensor("Tank Water Setpoint Temp", "tank_setpoint_temp", tank_set_point, "°C", "temperature", None, "mdi:thermometer-water", "sensor")
+        MSG.append(conf_msg)
+        value_msgs.append(val_msg)
+
+        # Outdoor temp
+        outdoor_temp = aquarea.otudoor_temp
+        self.log.debug(f"otudoor_temp = {outdoor_temp}")
+        conf_msg, val_msg = self.sensor("Outdoor temperature", "outdoor_temp", outdoor_temp, "°C", "temperature", None, "mdi:sun-thermometer-outline", "sensor")
+        MSG.append(conf_msg)
+        value_msgs.append(val_msg)
+
+        # Outgoing Water Temperature
+        water_outlet_temp = aquarea.water_out_temp
+        self.log.debug(f"water_out_temp = {water_outlet_temp}")
+
+        # Ingoing Water Temperature
+        water_inlet_temp = aquarea.water_in_temp
+        self.log.debug(f"water_in_temp = {water_inlet_temp}")
+
+        # Compressor frequency
+        freq = aquarea.compressor
+        self.log.debug(f"compressor = {freq}")
+        conf_msg, val_msg = self.sensor("Compressor Frequency", "compressor", freq, "Hz", "frequency", None, "mdi:sine-wave", "sensor")
+        MSG.append(conf_msg)
+        value_msgs.append(val_msg)
+
+        # Water termo shift
+        water_thermo_shift = aquarea.water_thermo_shift
+        self.log.debug(f"water_thermo_shift = {water_thermo_shift}")
+
+        # Mode
+        mode_t = Mode[aquarea.mode].value * 10
+        self.log.debug(f"mode = {aquarea.mode}, mode.value = {mode_t}")
+        conf_msg, val_msg = self.sensor("Operating Mode", "operation_mode", aquarea.mode, None, None, None, "mdi:cog-outline", "sensor")
+        MSG.append(conf_msg)
+        value_msgs.append(val_msg)
+
+        # Power
+        power = OnOff[aquarea.system].value
+        self.log.debug(f"system = {aquarea.system}, system.value = {power}")
+        if power == 0:
+            mode_t = 0
+        conf_msg, val_msg = self.sensor("Power", "power", power, "bool", None, None, "mdi:power", "binary_sensor")
+        MSG.append(conf_msg)
+        value_msgs.append(val_msg)
+
+        # Booster
+        booster = OnOff[aquarea.booster].value
+        self.log.debug(f"booster = {aquarea.booster}, booster.value = {booster}")
+        conf_msg, val_msg = self.sensor("Booster Status", "booster", booster, "bool", None, None, None, "binary_sensor")
+        MSG.append(conf_msg)
+        value_msgs.append(val_msg)
+
+        # Working
+        working = Working[aquarea.working].value
+        working_t = working * 10
+        working_n = 0 if working == 0 else 1
+        self.log.debug(f"working = {aquarea.working}, working.value = {working}")
+        conf_msg, val_msg = self.sensor("Climate", "working", aquarea.working, None, None, None, "mdi:cog-outline", "sensor")
+        MSG.append(conf_msg)
+        value_msgs.append(val_msg)
+
+        # Tank Working
+        tank_working = Working[aquarea.tank_working].value
+        tank_working_t = tank_working * 10
+        tank_working_n = 0 if tank_working == 0 else 1
+
+        self.log.debug(f"working = {aquarea.working}, working.value = {working}")
+        conf_msg, val_msg = self.sensor("Tank Climate", "tank_working", aquarea.tank_working, None, None, None, "mdi:cog-outline", "sensor")
+        MSG.append(conf_msg)
+        value_msgs.append(val_msg)
+
+        direction = None
+        if OnOff[aquarea.tank_connection] == OnOff.On:
+            direction = thrree_way_direction()
+
+        self.log.debug(f"tank_working = {aquarea.tank_working}, tank_working.value = {tank_working}")
+        self.log.debug(f"3-way valve = {direction}")
+
+        if (Mode[aquarea.mode] == Mode.Tank or power == 0 or direction == ThreeWayValve.DHW):
+
+            self.log.debug(f"Maybe DHW")
+
+            if ((Mode[aquarea.mode] == Mode.Tank or direction == ThreeWayValve.DHW) and freq > 0):
+
+                self.log.debug(f"Sending DHW temperature")
+                conf_msg, val_msg = self.sensor("DHW Outgoing Water Temperature", "dhw_water_out_temp", water_outlet_temp, "°C", "temperature", None, "mdi:water-plus", "sensor")
+                MSG.append(conf_msg)
+                value_msgs.append(val_msg)
+                conf_msg, val_msg = self.sensor("DHW Ingoing Water Temperature", "dhw_water_in_temp", water_inlet_temp, "°C", "temperature", None, "mdi:water-minus", "sensor")
+                MSG.append(conf_msg)
+                value_msgs.append(val_msg)
+
+        elif (power == 1 and (Mode[aquarea.mode] in [Mode.Heat, Mode.Heat_Tank, Mode.Cool_Tank, Mode.Cool])):
+
+            conf_msg, val_msg = self.sensor("Outgoing Water Temperature", "water_out_temp", water_outlet_temp, "°C", "temperature", None, "mdi:water-plus", "sensor")
+            MSG.append(conf_msg)
+            value_msgs.append(val_msg)
+            conf_msg, val_msg = self.sensor("Ingoing Water Temperature", "_water_in_temp", water_inlet_temp, "°C", "temperature", None, "mdi:water-minus", "sensor")
+            MSG.append(conf_msg)
+            value_msgs.append(val_msg)
+            conf_msg, val_msg = self.sensor("Water Current Thermoshift", "water_thermo_shift", water_thermo_shift, "°C", "temperature", None, "mdi:thermometer-chevron-up", "sensor")
+            MSG.append(conf_msg)
+            value_msgs.append(val_msg)
+
+            if (Mode[aquarea.mode] in [Mode.Heat, Mode.Heat_Tank]):
+                water_target_temp = aquarea.heat_setpoint_temp
+                self.log.debug(f"heat_setpoint_temp = {water_target_temp}")
+                conf_msg, val_msg = self.sensor("Heating Setpoint Temperature", "heat_setpoint_temp", water_target_temp, "°C", "temperature", None, "mdi:thermometer-auto", "sensor")
+                MSG.append(conf_msg)
+                value_msgs.append(val_msg)
+            else:
+                water_target_temp = aquarea.cool_setpoint_temp
+                self.log.debug(f"cool_setpoint_temp = {water_target_temp}")
+                conf_msg, val_msg = self.sensor("Cooling Setpoint Temperature", "cool_setpoint_temp", water_target_temp, "°C", "temperature", None, "mdi:thermometer-auto", "sensor")
+                MSG.append(conf_msg)
+                value_msgs.append(val_msg)
+
+
+        # Publish to MQTT
+        self.log.info(MSG)
+        rc = publish.multiple(MSG, hostname=self.broker, port=self.port, client_id="pa_aw_mbs")
+        self.log.info("Publish: %s" % (rc))
+        time.sleep(0.5)
+        self.log.info(value_msgs)
+        rc = publish.multiple(value_msgs, hostname=self.broker, port=self.port, client_id="pa_aw_mbs")
         self.log.info("Publish: %s" % (rc))
 
 
