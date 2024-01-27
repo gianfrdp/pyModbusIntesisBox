@@ -380,13 +380,16 @@ class MQTT:
         self.port = port
         self.log = log
 
-    def sensor(self, name, key, value, unit, device_class, state_class, icon, sensor):
+    def sensor(self, name, key, value, unit, device_class, state_class, icon, sensor, options):
 
         topic0 = f"homeassistant/{sensor}/aquarea_{key}"
+        topic1 = f"aquarea/{key}"
         topic = f"{topic0}/config"
+        cmd_topic = f"{topic1}/cmd"
+        state_topic = f"{topic1}/state"
         payload = {
             "name": f"{name}",
-            "state_topic": f"{topic0}/state",
+            "state_topic": f"{topic1}/state",
             "unique_id": f"aquarea_{key}",
             "force_update": "true",
         }
@@ -398,23 +401,26 @@ class MQTT:
             payload["state_class"] = state_class
         if icon:
             payload.update({"icon": icon})
+        if options:
+           payload.update({"options": options})
+        if sensor in ["switch", "select", "button", "light"]:
+           payload.update({"command_topic": cmd_topic})
 
         payload["device"] = {
             "name": "aquarea",
-            "identifiers": ["T-CAP 9 kW Monobloc"],
+            "identifiers": ["1DC91213A0"],
             "model": "WH-MXC09D3E5",
             "manufacturer": "Panasonic",
         }
         value_ = value
         if sensor == "binary_sensor":
-          if value == 0:
+          if value == 0 or value == "Off":
             value_ = "OFF"
           else:
             value_ = "ON"
         payloads = js.dumps(payload)
         conf_msg = {"topic": topic, "payload": payloads}
-        topic = f"{topic0}/state"
-        val_msg = {"topic": topic, "payload": value_}
+        val_msg = {"topic": state_topic, "payload": value_}
         return conf_msg, val_msg
 
     def send(self, aquarea):
@@ -425,21 +431,21 @@ class MQTT:
         # Tank Temp
         tank_temp = aquarea.tank_water_temp
         self.log.debug(f"tank_water_temp = {tank_temp}")
-        conf_msg, val_msg = self.sensor("Tank Water Temperature", "tank_water_temp", tank_temp, "°C", "temperature", None, "mdi:water-thermometer", "sensor")
+        conf_msg, val_msg = self.sensor("Tank Water Temperature", "tank_water_temp", tank_temp, "°C", "temperature", None, "mdi:water-thermometer", "sensor", None)
         MSG.append(conf_msg)
         value_msgs.append(val_msg)
 
         # Tank Set Point
         tank_set_point = aquarea.tank_setpoint_temp
         self.log.debug(f"tank_setpoint_temp = {tank_set_point}")
-        conf_msg, val_msg = self.sensor("Tank Water Setpoint Temp", "tank_setpoint_temp", tank_set_point, "°C", "temperature", None, "mdi:thermometer-water", "sensor")
+        conf_msg, val_msg = self.sensor("Tank Water Setpoint Temp", "tank_setpoint_temp", tank_set_point, "°C", "temperature", None, "mdi:thermometer-water", "sensor", None)
         MSG.append(conf_msg)
         value_msgs.append(val_msg)
 
         # Outdoor temp
         outdoor_temp = aquarea.otudoor_temp
         self.log.debug(f"otudoor_temp = {outdoor_temp}")
-        conf_msg, val_msg = self.sensor("Outdoor temperature", "outdoor_temp", outdoor_temp, "°C", "temperature", None, "mdi:sun-thermometer-outline", "sensor")
+        conf_msg, val_msg = self.sensor("Outdoor temperature", "outdoor_temp", outdoor_temp, "°C", "temperature", None, "mdi:sun-thermometer-outline", "sensor", None)
         MSG.append(conf_msg)
         value_msgs.append(val_msg)
 
@@ -454,7 +460,7 @@ class MQTT:
         # Compressor frequency
         freq = aquarea.compressor
         self.log.debug(f"compressor = {freq}")
-        conf_msg, val_msg = self.sensor("Compressor Frequency", "compressor", freq, "Hz", "frequency", None, "mdi:sine-wave", "sensor")
+        conf_msg, val_msg = self.sensor("Compressor Frequency", "compressor", freq, "Hz", "frequency", None, "mdi:sine-wave", "sensor", None)
         MSG.append(conf_msg)
         value_msgs.append(val_msg)
 
@@ -465,7 +471,8 @@ class MQTT:
         # Mode
         mode_t = Mode[aquarea.mode].value * 10
         self.log.debug(f"mode = {aquarea.mode}, mode.value = {mode_t}")
-        conf_msg, val_msg = self.sensor("Operating Mode", "operation_mode", aquarea.mode, None, None, None, "mdi:cog-outline", "sensor")
+        options = ["Heat", "Heat_Tank", "Tank", "Cool_Tank", "Cool"]
+        conf_msg, val_msg = self.sensor("Operating Mode", "operation_mode", aquarea.mode, None, None, None, "mdi:cog-outline", "select", options)
         MSG.append(conf_msg)
         value_msgs.append(val_msg)
 
@@ -474,14 +481,14 @@ class MQTT:
         self.log.debug(f"system = {aquarea.system}, system.value = {power}")
         if power == 0:
             mode_t = 0
-        conf_msg, val_msg = self.sensor("Power", "power", power, "bool", None, None, "mdi:power", "binary_sensor")
+        conf_msg, val_msg = self.sensor("Power", "power", aquarea.system, "bool", None, None, "mdi:power", "switch", None)
         MSG.append(conf_msg)
         value_msgs.append(val_msg)
 
         # Booster
         booster = OnOff[aquarea.booster].value
         self.log.debug(f"booster = {aquarea.booster}, booster.value = {booster}")
-        conf_msg, val_msg = self.sensor("Booster Status", "booster", booster, "bool", None, None, None, "binary_sensor")
+        conf_msg, val_msg = self.sensor("Booster Status", "booster", aquarea.booster, "bool", None, None, None, "binary_sensor", None)
         MSG.append(conf_msg)
         value_msgs.append(val_msg)
 
@@ -490,7 +497,8 @@ class MQTT:
         working_t = working * 10
         working_n = 0 if working == 0 else 1
         self.log.debug(f"working = {aquarea.working}, working.value = {working}")
-        conf_msg, val_msg = self.sensor("Climate", "working", aquarea.working, None, None, None, "mdi:cog-outline", "sensor")
+        options = ["Eco", "Normal", "Powerful"]
+        conf_msg, val_msg = self.sensor("Climate", "working", aquarea.working, None, None, None, "mdi:cog-outline", "select", options)
         MSG.append(conf_msg)
         value_msgs.append(val_msg)
 
@@ -500,7 +508,8 @@ class MQTT:
         tank_working_n = 0 if tank_working == 0 else 1
 
         self.log.debug(f"working = {aquarea.working}, working.value = {working}")
-        conf_msg, val_msg = self.sensor("Tank Climate", "tank_working", aquarea.tank_working, None, None, None, "mdi:cog-outline", "sensor")
+        options = ["Eco", "Normal", "Powerful"]
+        conf_msg, val_msg = self.sensor("Tank Climate", "tank_working", aquarea.tank_working, None, None, None, "mdi:cog-outline", "select", options)
         MSG.append(conf_msg)
         value_msgs.append(val_msg)
 
@@ -518,35 +527,35 @@ class MQTT:
             if ((Mode[aquarea.mode] == Mode.Tank or direction == ThreeWayValve.DHW) and freq > 0):
 
                 self.log.debug(f"Sending DHW temperature")
-                conf_msg, val_msg = self.sensor("DHW Outgoing Water Temperature", "dhw_water_out_temp", water_outlet_temp, "°C", "temperature", None, "mdi:water-plus", "sensor")
+                conf_msg, val_msg = self.sensor("DHW Outgoing Water Temperature", "dhw_water_out_temp", water_outlet_temp, "°C", "temperature", None, "mdi:water-plus", "sensor", None)
                 MSG.append(conf_msg)
                 value_msgs.append(val_msg)
-                conf_msg, val_msg = self.sensor("DHW Ingoing Water Temperature", "dhw_water_in_temp", water_inlet_temp, "°C", "temperature", None, "mdi:water-minus", "sensor")
+                conf_msg, val_msg = self.sensor("DHW Ingoing Water Temperature", "dhw_water_in_temp", water_inlet_temp, "°C", "temperature", None, "mdi:water-minus", "sensor", None)
                 MSG.append(conf_msg)
                 value_msgs.append(val_msg)
 
         elif (power == 1 and (Mode[aquarea.mode] in [Mode.Heat, Mode.Heat_Tank, Mode.Cool_Tank, Mode.Cool])):
 
-            conf_msg, val_msg = self.sensor("Outgoing Water Temperature", "water_out_temp", water_outlet_temp, "°C", "temperature", None, "mdi:water-plus", "sensor")
+            conf_msg, val_msg = self.sensor("Outgoing Water Temperature", "water_out_temp", water_outlet_temp, "°C", "temperature", None, "mdi:water-plus", "sensor", None)
             MSG.append(conf_msg)
             value_msgs.append(val_msg)
-            conf_msg, val_msg = self.sensor("Ingoing Water Temperature", "_water_in_temp", water_inlet_temp, "°C", "temperature", None, "mdi:water-minus", "sensor")
+            conf_msg, val_msg = self.sensor("Ingoing Water Temperature", "water_in_temp", water_inlet_temp, "°C", "temperature", None, "mdi:water-minus", "sensor", None)
             MSG.append(conf_msg)
             value_msgs.append(val_msg)
-            conf_msg, val_msg = self.sensor("Water Current Thermoshift", "water_thermo_shift", water_thermo_shift, "°C", "temperature", None, "mdi:thermometer-chevron-up", "sensor")
+            conf_msg, val_msg = self.sensor("Water Current Thermoshift", "water_thermo_shift", water_thermo_shift, "°C", "temperature", None, "mdi:thermometer-chevron-up", "sensor", None)
             MSG.append(conf_msg)
             value_msgs.append(val_msg)
 
             if (Mode[aquarea.mode] in [Mode.Heat, Mode.Heat_Tank]):
                 water_target_temp = aquarea.heat_setpoint_temp
                 self.log.debug(f"heat_setpoint_temp = {water_target_temp}")
-                conf_msg, val_msg = self.sensor("Heating Setpoint Temperature", "heat_setpoint_temp", water_target_temp, "°C", "temperature", None, "mdi:thermometer-auto", "sensor")
+                conf_msg, val_msg = self.sensor("Heating Setpoint Temperature", "heat_setpoint_temp", water_target_temp, "°C", "temperature", None, "mdi:thermometer-auto", "sensor", None)
                 MSG.append(conf_msg)
                 value_msgs.append(val_msg)
             else:
                 water_target_temp = aquarea.cool_setpoint_temp
                 self.log.debug(f"cool_setpoint_temp = {water_target_temp}")
-                conf_msg, val_msg = self.sensor("Cooling Setpoint Temperature", "cool_setpoint_temp", water_target_temp, "°C", "temperature", None, "mdi:thermometer-auto", "sensor")
+                conf_msg, val_msg = self.sensor("Cooling Setpoint Temperature", "cool_setpoint_temp", water_target_temp, "°C", "temperature", None, "mdi:thermometer-auto", "sensor", None)
                 MSG.append(conf_msg)
                 value_msgs.append(val_msg)
 
@@ -554,7 +563,7 @@ class MQTT:
         # Publish to MQTT
         self.log.info(MSG)
         rc = publish.multiple(MSG, hostname=self.broker, port=self.port, client_id="pa_aw_mbs")
-        self.log.info("Publish: %s" % (rc))
+        #self.log.info("Publish: %s" % (rc))
         time.sleep(0.5)
         self.log.info(value_msgs)
         rc = publish.multiple(value_msgs, hostname=self.broker, port=self.port, client_id="pa_aw_mbs")

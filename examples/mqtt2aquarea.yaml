@@ -1,0 +1,77 @@
+mqtt:
+  - switch:
+      unique_id: aquarea_power
+      name: "Power"
+      state_topic: "aquarea/power/state"
+      command_topic: "aquarea/power/cmd"
+      payload_off: "Off"
+      payload_on: "On"
+      #state_off: "OFF"
+      #state_on: "ON"
+      icon: mdi:power
+      optimistic: true
+      device:
+         name: "aquarea"
+         identifiers: "1DC91213A0"
+         manufacturer: Panasonic
+         model: "WH-MXC09D3E5"
+         
+  - select:
+        - name: "Operating Mode"
+          unique_id: aquarea_operation_mode
+          state_topic: "aquarea/operation_mode/state"
+          command_topic: "aquarea/operation_mode/cmd"
+          options:
+            - "Heat"
+            - "Heat_Tank"
+            - "Tank"
+            - "Cool_Tank"
+            - "Cool"
+          device:
+             name: "aquarea"
+             identifiers: "1DC91213A0"
+             manufacturer: Panasonic
+             model: "WH-MXC09D3E5"
+
+        - name: "Climate"
+          unique_id: aquarea_working
+          state_topic: "aquarea/working/state"
+          command_topic: "aquarea/working/cmd"
+          options:
+            - "Eco"
+            - "Normal"
+            - "Powerful"
+          device:
+             name: "aquarea"
+             identifiers: "1DC91213A0"
+             manufacturer: Panasonic
+             model: "WH-MXC09D3E5"
+
+        - name: "Tank Climate"
+          unique_id: aquarea_tank_working
+          state_topic: "aquarea/tank_working/state"
+          command_topic: "aquarea/tank_working/cmd"
+          options:
+            - "Eco"
+            - "Normal"
+            - "Powerful"
+          device:
+             name: "aquarea"
+             identifiers: "1DC91213A0"
+             manufacturer: Panasonic
+             model: "WH-MXC09D3E5"
+
+  - water_heater:
+      name: "Tank"
+      modes:
+        - "Eco"
+        - "Normal"
+        - "Powerful"
+      mode_command_topic: "aquarea/tank_working/cmd"
+      mode_state_topic: "aquarea/tank_working/state"
+      temperature_state_topic: "aquarea/boiler/temperature"
+      device:
+         name: "aquarea"
+         identifiers: "1DC91213A0"
+         manufacturer: Panasonic
+         model: "WH-MXC09D3E5"
