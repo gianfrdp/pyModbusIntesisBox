@@ -109,7 +109,7 @@ def on_message(mosq, obj, msg):
         _power = decoded_message
         log.debug(F'topic: {topic}, qos: {msg.qos}, payload: {decoded_message}')
         poll(aquarea)
-        log.info(F"_power = {decoded_message}, aquarea.system = {aquarea.system}")
+        log.info(F"_power = {decoded_message} <- aquarea.system = {aquarea.system}")
         aquarea.system = _power
         if aquarea.qsize > 0:
             cmd(aquarea)
@@ -121,7 +121,7 @@ def on_message(mosq, obj, msg):
         _mode = decoded_message
         log.debug(F'topic: {topic}, qos: {msg.qos}, payload: {decoded_message}')
         poll(aquarea)
-        log.info(F"_mode = {decoded_message}, aquarea.mode = {aquarea.mode}")
+        log.info(F"_mode = {decoded_message} <- aquarea.mode = {aquarea.mode}")
         aquarea.mode = _mode
         if aquarea.qsize > 0:
             cmd(aquarea)
@@ -134,7 +134,7 @@ def on_message(mosq, obj, msg):
         _working = decoded_message
         log.debug(F'topic: {topic}, qos: {msg.qos}, payload: {decoded_message}')
         poll(aquarea)
-        log.info(F"_working = {decoded_message}, aquarea.working = {aquarea.working}")
+        log.info(F"_working = {decoded_message} <- aquarea.working = {aquarea.working}")
         aquarea.working = _working
         if aquarea.qsize > 0:
             cmd(aquarea)
@@ -148,7 +148,7 @@ def on_message(mosq, obj, msg):
         _tank_working = decoded_message
         log.debug(F'topic: {topic}, qos: {msg.qos}, payload: {decoded_message}')
         poll(aquarea)
-        log.info(F"_tank_working = {decoded_message}, aquarea.tank_working = {aquarea.tank_working}")
+        log.info(F"_tank_working = {decoded_message} <- aquarea.tank_working = {aquarea.tank_working}")
         aquarea.tank_working = _tank_working
         if aquarea.qsize > 0:
             cmd(aquarea)

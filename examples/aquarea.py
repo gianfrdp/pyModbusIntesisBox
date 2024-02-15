@@ -111,9 +111,11 @@ def main():
             mode = args.climate_working
             aquarea.working = mode
             log.info(f"Command = Heat/Cool working {mode}")
-            log.info(f"aquarea.system = {aquarea.system}, aquarea.mode = {aquarea.mode} ")
-            
+            log.info(f"aquarea.system = {aquarea.system}, aquarea.mode = {aquarea.mode}, aquarea.config_mode = {aquarea.config_mode} ")
+
             #if (Mode[aquarea.mode] in [Mode.Heat, Mode.Heat_Tank, Mode.Cool_Tank, Mode.Cool]):
+
+            '''
             shift = 0
             if (aquarea.config_mode == Mode.Cool.name):
                 if (mode == Working.Eco.name):
@@ -125,8 +127,22 @@ def main():
                     shift = -1 * aquarea.thermoshift_heat_eco
                 elif (mode == Working.Powerful.name):
                     shift = aquarea.thermoshift_heat_powerful
-            aquarea.water_thermo_shift = shift
-            log.info(f"Water thermo shift = {shift}")
+            '''
+
+            shift = 0
+            if (mode == Working.Eco.name):
+                shift = -1 * aquarea.thermoshift_cool_eco
+            elif (mode == Working.Powerful.name):
+                shift = aquarea.thermoshift_cool_powerful
+
+            if (aquarea.config_mode == Mode.Cool.name):
+                shift = -11 * shift
+            else:
+                shift = 1 * shift
+
+            #
+            #aquarea.water_thermo_shift = shift
+            #log.info(f"Water thermo shift = {shift}")
 
         if args.tank_powerful is not None:
             value = args.tank_powerful
