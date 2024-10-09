@@ -9,11 +9,20 @@ from urllib.request import urlopen
 import json as js
 import sys
 import argparse
-import paho.mqtt.client as mqtt
+#import paho.mqtt.client as mqtt
+from paho.mqtt.client import Client
 import paho.mqtt.publish as publish
 import time
 from datetime import datetime
 from enum import Enum
+from requests import get
+import uuid
+
+_TOPIC = 'pdc/3-way-valve/state'
+_broker = "192.168.2.32"
+_port = 1883
+_direction = None
+client = None
 
 def init_argparse() -> argparse.ArgumentParser:
     
@@ -77,6 +86,15 @@ def main():
         aquarea.close()
         log.info("done!")
     else:
+        global client
+        client = Client(client_id = "aquarea_" + str(uuid.uuid1()))
+
+        client.on_connect = on_connect
+        client.on_message = on_message
+        #client.enable_logger(log)
+        client.connect(host=_broker, port=_port, keepalive=60)
+        client.loop_start()
+
         if args.power is not None:
             mode = args.power
             aquarea.system = mode
@@ -203,12 +221,13 @@ def main():
 
     if args.domoticz and not args.restart:
         ''' Semd data to domoticz '''
+        broker = _broker
+        port = _port
+
         #---------------------------------------------------------------------------# 
         # To Domoticz via MQTT
         #---------------------------------------------------------------------------# 
         log.info('Domoticz via MQTT -----------------------------------')
-        broker = "192.168.2.32"
-        port = 1883
         domoticz = Domoticz(broker, port, log)
         domoticz.temp_idx               = 8
         domoticz.tank_set_point_idx     = 76
@@ -230,45 +249,63 @@ def main():
         log.info('Domoticz via MQTT -----------------------------------')
 
         log.info('MQTT -----------------------------------')
-        broker = "192.168.2.32"
-        port = 1883
         mqtt = MQTT(broker, port, log)
         mqtt.send(aquarea)
         log.info('MQTT -----------------------------------')
 
 
+def on_connect(client, userdata, flags, rc):
+    if rc==0:
+        client.connected_flag=True #set flag
+        log.debug("aquarea ---------------------------")
+        log.debug("connected OK")
+        client.subscribe(_TOPIC, 1)
+    else:
+        log.debug("Bad connection Returned code=",rc)
+        client.bad_connection_flag=True
+
+
+def on_disconnect(client, userdata, rc):
+    log.debug("disconnecting reason  "  +str(rc))
+
+### topic message
+def on_message(mosq, obj, msg):
+
+    global _direction
+    decoded_message = str(msg.payload.decode("utf-8"))
+    topic = msg.topic
+    log.debug(F'topic: {topic}, qos: {msg.qos}, payload: {decoded_message}')
+
+    if topic == 'pdc/3-way-valve/state':
+        state = decoded_message
+        log.debug(F'topic: {topic}, qos: {msg.qos}, payload: {decoded_message}')
+        _direction = state
+        client.disconnect()
+
+
 def thrree_way_direction():
 
-    status = None
-    state = None
-    url = "http://192.168.4.45/status"
-    last_direction = None
-    try:
-       response = urlopen(url)
-       data_json = js.loads(response.read())
-       state = data_json["rollers"][0]["state"]
-       last_direction =  data_json["rollers"][0]["last_direction"]
+    global _direction
+    #global client
+    #client = Client(client_id = "aquarea_" + str(uuid.uuid1()))
 
-       #print(F"state = {state}, last_direction = {last_direction}")
-    except:
-       print(F"An exception occurred opening {url}") 
+    #client.on_connect = on_connect
+    #client.on_message = on_message
+    ##client.enable_logger(log)
+    #client.connect(host=_broker, port=_port, keepalive=60)
+    #client.loop_start()
 
-    direction = None
-    if last_direction == state:
-        direction = last_direction
-    else:
-        direction = state
-
-    if direction == 'close':
+    if _direction == 'floor':
         status = ThreeWayValve.CLIMATE
-    elif direction == 'open':
+    elif _direction == 'boiler':
         status = ThreeWayValve.DHW
     else:
         status = ThreeWayValve.UNKNOWN
 
-    #print(F"status = {status}")
+    #print(F"status = {status}, _direction = {_direction}")
 
     return status
+
 
 
 class Domoticz:
@@ -384,6 +421,8 @@ class Domoticz:
         self.log.info(self.broker)
         rc = publish.multiple(MSG, hostname=self.broker, port=self.port, client_id="pa_aw_mbs")
         self.log.info("Publish: %s" % (rc))
+
+
 
 class MQTT:
     
@@ -584,6 +623,8 @@ class MQTT:
         self.log.info(value_msgs)
         rc = publish.multiple(value_msgs, hostname=self.broker, port=self.port, client_id="pa_aw_mbs")
         self.log.info("Publish: %s" % (rc))
+
+
 
 
 if __name__ == "__main__":
