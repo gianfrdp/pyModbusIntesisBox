@@ -18,11 +18,12 @@ from enum import Enum
 from requests import get
 import uuid
 
-_TOPIC = 'pdc/3-way-valve/state'
-_broker = "192.168.2.32"
-_port = 1883
+_TOPIC     = None
+_broker    = None
+_port      = None
 _direction = None
-client = None
+client     = None
+_auth      = None
 
 def init_argparse() -> argparse.ArgumentParser:
     
@@ -86,14 +87,17 @@ def main():
         aquarea.close()
         log.info("done!")
     else:
+        log.info("Connecting to MQTT...")
         global client
         client = Client(client_id = "aquarea_" + str(uuid.uuid1()))
+        client.username_pw_set(_auth['username'], _auth['password'])
 
         client.on_connect = on_connect
         client.on_message = on_message
         #client.enable_logger(log)
         client.connect(host=_broker, port=_port, keepalive=60)
         client.loop_start()
+        log.info("connected")
 
         if args.power is not None:
             mode = args.power
@@ -260,6 +264,7 @@ def on_connect(client, userdata, flags, rc):
         log.debug("aquarea ---------------------------")
         log.debug("connected OK")
         client.subscribe(_TOPIC, 1)
+        log.info(F"Subscribed to {_TOPIC}")
     else:
         log.debug("Bad connection Returned code=",rc)
         client.bad_connection_flag=True
@@ -274,12 +279,13 @@ def on_message(mosq, obj, msg):
     global _direction
     decoded_message = str(msg.payload.decode("utf-8"))
     topic = msg.topic
-    log.debug(F'topic: {topic}, qos: {msg.qos}, payload: {decoded_message}')
+    log.info(F'1. topic: {topic}, qos: {msg.qos}, payload: {decoded_message}')
 
-    if topic == 'pdc/3-way-valve/state':
+    if topic == _TOPIC:
         state = decoded_message
-        log.debug(F'topic: {topic}, qos: {msg.qos}, payload: {decoded_message}')
+        log.info(F'2. topic: {topic}, qos: {msg.qos}, payload: {decoded_message}')
         _direction = state
+        client.loop_stop()
         client.disconnect()
 
 
@@ -302,7 +308,7 @@ def thrree_way_direction():
     else:
         status = ThreeWayValve.UNKNOWN
 
-    #print(F"status = {status}, _direction = {_direction}")
+    log.debug(F"status = {status}, _direction = {_direction}")
 
     return status
 
@@ -575,6 +581,17 @@ class MQTT:
         self.log.debug(f"tank_working = {aquarea.tank_working}, tank_working.value = {tank_working}")
         self.log.debug(f"3-way valve = {direction}")
 
+        # Heater Status
+        heater_status = OnOff[aquarea.heater_status].value
+        self.log.debug(f"heater_status = {aquarea.heater_status}, heater_status.value = {heater_status}")
+        if aquarea.heater_status == 1:
+            icon = "mdi:radiator"
+        else:
+            icon = "mdi:radiator-off"
+        conf_msg, val_msg = self.sensor("Heater Status", "heater_status", aquarea.heater_status, "bool", None, None, icon, "binary_sensor", None)
+        MSG.append(conf_msg)
+        value_msgs.append(val_msg)
+
         if (Mode[aquarea.mode] == Mode.Tank or power == 0 or direction == ThreeWayValve.DHW):
 
             self.log.debug(f"Maybe DHW")
@@ -631,9 +648,26 @@ if __name__ == "__main__":
     import logging
     import logging.config
     from os import path
+    import configparser
 
     log_file_path = path.join(path.dirname(path.abspath(__file__)), 'pa_aw_mbs_log_config.ini')
     logging.config.fileConfig(log_file_path, disable_existing_loggers=False)
     log = logging.getLogger("aquarea")
+    config = configparser.ConfigParser()
+    config.read(log_file_path)
+    if 'mqtt' in config:
+        _broker   = config['mqtt']['broker']
+        _port     = int(config['mqtt']['port'])
+        _TOPIC    = config['mqtt']['topic']
+        _username = config['mqtt']['username']
+        _password = config['mqtt']['password']
+    else:
+        _broker   = "xxx.xxx.xxx.xxx2"
+        _port     = 1883
+        _TOPIC    = 'pdc/3-way-valve/state'
+        _username = "xxxxxx"
+        _password = "xxxxxx"
+    
+    _auth = {'username': _username, 'password': _password}
 
     main()
